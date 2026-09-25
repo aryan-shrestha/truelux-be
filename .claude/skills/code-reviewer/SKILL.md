@@ -60,7 +60,7 @@ for user in users:
     orders = Order.objects.filter(user=user)  # N+1
 
 # GOOD: prefetch in bulk
-users = User.objects.prefetch_related("orders").all()
+users = User.objects.prefetch_related('orders').all()
 ```
 
 ### Magic Number — Bad vs Good
