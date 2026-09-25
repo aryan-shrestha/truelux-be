@@ -181,6 +181,9 @@ REST_FRAMEWORK = {
         # Checkout writes and holds row locks for the length of its transaction,
         # which makes it more expensive to abuse than any read endpoint here.
         "checkout": read.throttle_rate("DJANGO_THROTTLE_CHECKOUT"),
+        # The token endpoints are a password-guessing surface.
+        "auth": read.throttle_rate("DJANGO_THROTTLE_AUTH"),
+        "admin": read.throttle_rate("DJANGO_THROTTLE_ADMIN"),
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
@@ -196,7 +199,13 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_AUTHENTICATION_RULE": "apps.users.authentication.is_active_staff",
 }
+
+# `make seed-staff` creates this login for the admin app; the command refuses to run
+# outside DEBUG.
+DEMO_STAFF_EMAIL = read.text("DEMO_STAFF_EMAIL")
+DEMO_STAFF_PASSWORD = read.text("DEMO_STAFF_PASSWORD")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "TrueLux API",

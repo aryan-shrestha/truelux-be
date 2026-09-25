@@ -41,6 +41,7 @@ NEVER_ECHOED = frozenset(
         "DJANGO_SECRET_KEY",
         "CLOUDINARY_API_SECRET",
         "EMAIL_HOST_PASSWORD",
+        "DEMO_STAFF_PASSWORD",
     }
 )
 

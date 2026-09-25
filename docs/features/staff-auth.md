@@ -1,6 +1,6 @@
 # Staff auth
 
-Status: Planned
+Status: Implemented
 
 Last updated: 2026-09-25
 
@@ -64,6 +64,85 @@ CORS entry for the admin origin.
 
 ---
 
+## Implemented
+
+- `apps/users/authentication.py` — `is_active_staff`, installed as SimpleJWT's
+  `USER_AUTHENTICATION_RULE`. SimpleJWT applies the rule when it issues a pair and
+  again on every refresh, so it covers both the staff-only login and a de-staffed
+  refresh token.
+- `apps/users/views.py` — `StaffTokenObtainView` and `StaffTokenRefreshView`
+  (SimpleJWT's views with `ScopedRateThrottle`, scope `auth`), `LogoutView` and
+  `MeView` (`JWTAuthentication` only, `IsAuthenticated` + `IsAdminUser`).
+- `apps/users/services.py` — `revoke_refresh_token` blacklists a refresh token
+  after checking it belongs to the caller.
+- `apps/users/urls.py` — mounted under `/api/v1/auth/`.
+- `apps/users/management/commands/seed_staff.py` and `make seed-staff` — create or
+  reset `DEMO_STAFF_EMAIL` as an active staff user named Asha Rai, with
+  `DEMO_STAFF_PASSWORD`. Refuses outside `DEBUG`.
+- `config/settings/base.py` — `auth` (`DJANGO_THROTTLE_AUTH`) and `admin`
+  (`DJANGO_THROTTLE_ADMIN`) throttle scopes; `DEMO_STAFF_EMAIL` and
+  `DEMO_STAFF_PASSWORD`, required like every variable (ADR 0008), in `.env.example`
+  and `render.yaml` (`sync: false`). `DEMO_STAFF_PASSWORD` is on `NEVER_ECHOED`.
+- `rest_framework_simplejwt.token_blacklist` was already installed; its migrations
+  run with `make migrate`.
+
+---
+
+## Remaining
+
+None.
+
+---
+
+## Decisions
+
+### Decision: the staff rule lives in `USER_AUTHENTICATION_RULE`, not a serializer
+
+**Decision**
+
+The planned `TokenObtainPairSerializer` subclass was not written. The rule function
+is configured once in `SIMPLE_JWT`.
+
+**Reason**
+
+SimpleJWT already raises its `no_active_account` 401 when the rule fails, for login
+and refresh alike, so a subclass would duplicate that and still need a second one
+for refresh.
+
+**Consequence**
+
+Wrong password, unknown email, inactive and non-staff all produce one body:
+`401 authentication_failed`, "No active account found with the given credentials".
+
+### Decision: a bad refresh token on logout is a 422, not a 401
+
+**Decision**
+
+`POST /auth/logout/` with a malformed, expired, revoked or someone else's refresh
+token returns `422 invalid_refresh_token`.
+
+**Reason**
+
+The request itself is authenticated by the access token; only the body is wrong.
+The service raises a `DomainError`, as every service here does.
+
+---
+
+## Gotchas
+
+- `JWTAuthentication` itself does not apply the rule: a non-staff user's access
+  token still authenticates and gets `403` from `IsAdminUser`. Only SimpleJWT's
+  obtain and refresh consult `is_active_staff`.
+- The Django admin session is ignored by these endpoints (and by `/api/v1/admin/`):
+  the global authentication class is JWT only.
+- A refresh token whose user row has been deleted makes SimpleJWT's refresh raise
+  `User.DoesNotExist`, which the handler reports as `404 not_found`.
+- The access token lives 15 minutes and the refresh token 7 days
+  (`JWT_ACCESS_TOKEN_LIFETIME_MINUTES`, `JWT_REFRESH_TOKEN_LIFETIME_DAYS`).
+- `DJANGO_SECRET_KEY` signs the tokens; PyJWT warns below 32 bytes.
+
+---
+
 ## API
 
 ### `POST /api/v1/auth/token/`
@@ -90,7 +169,8 @@ returns `401 authentication_failed`.
 ### `POST /api/v1/auth/logout/`
 
 Bearer access token required. `{ "refresh": "<jwt>" }` → `204`. Blacklists the
-refresh token.
+refresh token. A refresh token that is invalid, revoked or belongs to another user
+returns `422 invalid_refresh_token`.
 
 ### `GET /api/v1/auth/me/`
 
@@ -117,12 +197,32 @@ The token and refresh endpoints are public but throttled. `me` and `logout` requ
 
 ## Tests
 
-To be written:
+`apps/users/tests/test_auth.py`:
 
-- Staff login succeeds; non-staff, inactive, unknown email and wrong password all
-  return byte-identical 401 bodies.
-- Refresh rotates the token and blacklists the old one; reusing the old token is 401.
-- Refresh fails after the user loses `is_staff`.
-- Logout blacklists the refresh token.
-- `me` requires a token; a non-staff token is 403.
-- The `auth` throttle returns 429 `throttled`.
+- Staff login returns `access` and `refresh`; wrong password, unknown email,
+  inactive and non-staff return byte-identical 401 bodies.
+- Refresh rotates, and reusing the old token is 401; refresh fails after the user
+  loses `is_staff`.
+- Logout blacklists the refresh token; another user's token is 422; logout needs a
+  token.
+- `me` returns the user, is 401 without a token, 403 for a non-staff token, and
+  401 with only a Django admin session.
+- The `auth` throttle returns 429.
+- `seed_staff` is idempotent, produces a login that works, and refuses outside DEBUG.
+
+---
+
+## Files
+
+```text
+apps/users/
+├── authentication.py
+├── exceptions.py
+├── serializers.py
+├── services.py
+├── urls.py
+├── views.py
+├── management/commands/seed_staff.py
+└── tests/test_auth.py
+config/settings/base.py
+```

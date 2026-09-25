@@ -16,7 +16,7 @@ from pathlib import Path
 # own Postgres. The values are deliberately fake; `.invalid` is reserved by
 # RFC 2606 and can never resolve.
 _TEST_ENVIRONMENT = {
-    "DJANGO_SECRET_KEY": "test-secret-key",
+    "DJANGO_SECRET_KEY": "test-secret-key-long-enough-to-sign-jwts",
     "DJANGO_DEBUG": "False",
     "DJANGO_ALLOWED_HOSTS": "testserver,localhost,127.0.0.1",
     "DJANGO_CORS_ALLOWED_ORIGINS": "",
@@ -29,6 +29,8 @@ _TEST_ENVIRONMENT = {
     "DJANGO_THROTTLE_CATALOG": "1000/minute",
     "DJANGO_THROTTLE_ORDER_LOOKUP": "1000/minute",
     "DJANGO_THROTTLE_CHECKOUT": "1000/minute",
+    "DJANGO_THROTTLE_AUTH": "1000/minute",
+    "DJANGO_THROTTLE_ADMIN": "1000/minute",
     "JWT_ACCESS_TOKEN_LIFETIME_MINUTES": "15",
     "JWT_REFRESH_TOKEN_LIFETIME_DAYS": "7",
     "CLOUDINARY_CLOUD_NAME": "test-cloud",
@@ -45,6 +47,8 @@ _TEST_ENVIRONMENT = {
     "SHIPPING_FEE_INSIDE_VALLEY": "150.00",
     "SHIPPING_FEE_OUTSIDE_VALLEY": "250.00",
     "STOREFRONT_URL": "https://storefront.invalid",
+    "DEMO_STAFF_EMAIL": "staff@truelux.invalid",
+    "DEMO_STAFF_PASSWORD": "test-staff-password",
 }
 
 os.environ.update(_TEST_ENVIRONMENT)

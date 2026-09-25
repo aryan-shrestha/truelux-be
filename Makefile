@@ -2,7 +2,7 @@
 DJANGO_SETTINGS_MODULE ?= config.settings.local
 MANAGE := uv run python manage.py
 
-.PHONY: help install run test lint format typecheck migrate makemigrations seed reseed shell superuser check
+.PHONY: help install run test lint format typecheck migrate makemigrations seed reseed seed-staff shell superuser check
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -42,6 +42,9 @@ reseed: ## Delete the seeded rows and seed again. Orders go first: they PROTECT 
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) seed_orders --flush-only
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) seed_demo --flush
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) seed_orders
+
+seed-staff: ## Create or reset the demo staff login from DEMO_STAFF_EMAIL (DEBUG only)
+	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) seed_staff
 
 shell: ## Open the Django shell
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) shell
