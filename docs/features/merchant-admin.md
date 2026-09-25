@@ -46,7 +46,7 @@ confused with the admin app.
   - `BrandAdmin`, `SizeAdmin`, `ShadeAdmin`, `CategoryAdmin` share `LookupAdmin`
     (editable `sort_order`, prepopulated slug, search).
   - `ProductAdmin`: `is_published` read-only; actions **Publish** / **Unpublish**
-    (`set_product_published`, refused per product without variants) and
+    (`update_product` with `is_published`, refused per product without variants) and
     **Generate variants** (chosen sizes × chosen shades, or shadeless when no shade
     is ticked; SKUs from the product, size and shade slugs).
   - `ProductVariantAdmin`: `stock_quantity` read-only; **Adjust stock** calls

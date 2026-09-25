@@ -54,7 +54,7 @@ colour axis became an optional shade. `apps/orders` writes stock only through
   `restore_variant_stock` (whole-cart, one ascending-`pk`
   `select_for_update(of=("self",))`) and `set_variant_stock` (absolute count, locked).
 - `apps/catalog/services/products.py` — create/update/delete for products, variants
-  and images; `set_product_published` and `update_product` refuse to publish a
+  and images; `update_product` refuses to publish a
   product without variants; `add_product_image` uploads before its transaction;
   promoting a primary clears the old one in the same transaction.
 - `apps/catalog/services/taxonomy.py` — create/update/delete for brands, categories,
@@ -76,7 +76,7 @@ None.
 
 **Decision**
 
-`unique_slug` slugifies the name (so `Lumière` becomes `lumiere`) and appends `-2`,
+`fill_missing_slug` slugifies the name (so `Lumière` becomes `lumiere`) and appends `-2`,
 `-3`… until no row has it.
 
 **Reason**
@@ -155,6 +155,6 @@ apps/catalog/
 ├── admin.py
 ├── exceptions.py
 ├── models.py
-├── services/{__init__,_slugs,products,stock,taxonomy}.py
+├── services/{__init__,_writes,products,stock,taxonomy}.py
 └── tests/
 ```

@@ -33,8 +33,9 @@ make run                    # http://localhost:8000
 ```
 
 `config.settings.local` forces `DEBUG` on and the SSL redirect off, stores uploads
-in `media/` and prints email to the console. Every variable in `.env.example` is required (ADR 0008); a missing or
-malformed one stops startup with one error naming all of them.
+in `media/` and prints email to the console. Every variable in `.env.example` is
+required (ADR 0008); a missing or malformed one stops startup with one error
+naming all of them.
 
 ## Commands
 

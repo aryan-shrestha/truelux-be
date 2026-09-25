@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from django.db.models import Count, DecimalField, Prefetch, QuerySet, Sum, Value
+from django.db.models import Count, DecimalField, Prefetch, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
@@ -55,6 +55,10 @@ def get_product(*, product_id: UUID) -> Product:
     )
 
 
+def get_product_row(*, product_id: UUID) -> Product:
+    return Product.objects.get(pk=product_id)
+
+
 def get_variant(*, variant_id: UUID) -> ProductVariant:
     return ProductVariant.objects.select_related("product", "size", "shade").get(pk=variant_id)
 
@@ -93,11 +97,8 @@ def _start_of_shop_day(day: date) -> datetime:
     return datetime.combine(day, time.min, tzinfo=SHOP_TIME_ZONE)
 
 
-def _revenue_since(orders: QuerySet[Order], since: datetime) -> Decimal:
-    total: Decimal = orders.filter(created_at__gte=since).aggregate(
-        total=Coalesce(Sum("total"), _ZERO)
-    )["total"]
-    return total
+def _revenue_since(since: datetime) -> Coalesce:
+    return Coalesce(Sum("total", filter=Q(created_at__gte=since)), _ZERO)
 
 
 def get_dashboard() -> dict[str, Any]:
@@ -128,11 +129,11 @@ def get_dashboard() -> dict[str, Any]:
 
     return {
         "orders_by_status": {status: counts.get(status, 0) for status in OrderStatus.values},
-        "revenue": {
-            "today": _revenue_since(earning, _start_of_shop_day(today)),
-            "last_7_days": _revenue_since(earning, _start_of_shop_day(today - timedelta(days=6))),
-            "last_30_days": _revenue_since(earning, _start_of_shop_day(window_start)),
-        },
+        "revenue": earning.aggregate(
+            today=_revenue_since(_start_of_shop_day(today)),
+            last_7_days=_revenue_since(_start_of_shop_day(today - timedelta(days=6))),
+            last_30_days=_revenue_since(_start_of_shop_day(window_start)),
+        ),
         "sales_by_day": sales_by_day,
         "recent_orders": list(list_orders()[:RECENT_ORDER_LIMIT]),
         "low_stock": list(

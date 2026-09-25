@@ -15,7 +15,7 @@ from apps.catalog.models import (
     Shade,
     Size,
 )
-from apps.catalog.services import set_product_published, set_variant_stock, update_product_image
+from apps.catalog.services import set_variant_stock, update_product, update_product_image
 from apps.core.exceptions import DomainError
 
 # Generated from the product, size and shade slugs, so it is unique whenever the
@@ -122,7 +122,7 @@ class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscript
         failed: list[str] = []
         for product in products:
             try:
-                set_product_published(product=product, is_published=is_published)
+                update_product(product=product, fields={}, is_published=is_published)
             except DomainError as exc:
                 failed.append(f"{product.name} ({exc.message})")
             else:

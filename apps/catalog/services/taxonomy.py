@@ -4,7 +4,7 @@ from typing import Any
 from django.core.exceptions import ValidationError
 
 from apps.catalog.models import Brand, Category, Shade, Size
-from apps.catalog.services._slugs import unique_slug
+from apps.catalog.services._writes import assign_fields, fill_missing_slug
 from apps.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,14 +18,8 @@ WRITABLE_FIELDS: dict[type[Brand | Category | Shade | Size], frozenset[str]] = {
 
 
 def _save[E: (Brand, Category, Shade, Size)](entry: E, fields: Mapping[str, Any]) -> E:
-    allowed = WRITABLE_FIELDS[type(entry)]
-    for name, value in fields.items():
-        if name not in allowed:
-            raise ValueError(f"{type(entry).__name__}.{name} is not writable here.")
-        setattr(entry, name, value)
-    if not entry.slug:
-        max_length = type(entry)._meta.get_field("slug").max_length or 50
-        entry.slug = unique_slug(model=type(entry), name=entry.name, max_length=max_length)
+    assign_fields(entry, fields, WRITABLE_FIELDS[type(entry)])
+    fill_missing_slug(entry)
     entry.save()
     return entry
 

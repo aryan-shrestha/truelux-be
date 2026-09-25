@@ -83,7 +83,7 @@ and cash is collected at delivery. Cancellation restores stock (ADR 0004, unchan
   `apps/backoffice/urls.py` and fails if a view does not inherit it.
 - `apps/catalog/services/` is now a package (`stock.py`, `products.py`,
   `taxonomy.py`, re-exported from `__init__.py`): `create_product`, `update_product`,
-  `set_product_published`, `delete_product`, `create_variant`, `update_variant`
+  `delete_product`, `create_variant`, `update_variant`
   (stock through `set_variant_stock`), `delete_variant`, `add_product_image`,
   `update_product_image`, `delete_product_image`, and `create_taxonomy_entry`,
   `update_taxonomy_entry`, `delete_taxonomy_entry` for brands, categories, shades and
@@ -93,7 +93,7 @@ and cash is collected at delivery. Cancellation restores stock (ADR 0004, unchan
   dispatches to `confirm_order`, `mark_order_shipped`, `mark_order_delivered` or
   `cancel_order`, so each keeps its own error.
 - The Django admin shares the services: "Publish" / "Unpublish" actions call
-  `set_product_published` (`is_published` is read-only on the form), and
+  `update_product` with `is_published` (read-only on the form), and
   `ProductImageAdmin`'s "Make primary" action calls `update_product_image`
   (`is_primary` is read-only there). Orders get "Mark selected orders as confirmed".
 - The dashboard is one selector, `get_dashboard`, in `Asia/Kathmandu` days.

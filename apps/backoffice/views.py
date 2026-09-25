@@ -123,7 +123,7 @@ class ProductDetailView(StaffAPIView):
         is_published = fields.pop("is_published", None)
 
         update_product(
-            product=selectors.get_product(product_id=product_id),
+            product=selectors.get_product_row(product_id=product_id),
             fields=fields,
             is_published=is_published,
         )
@@ -134,7 +134,7 @@ class ProductDetailView(StaffAPIView):
 
     @extend_schema(responses={204: None})
     def delete(self, request: Request, product_id: UUID) -> Response:
-        delete_product(product=selectors.get_product(product_id=product_id))
+        delete_product(product=selectors.get_product_row(product_id=product_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -145,7 +145,7 @@ class ProductVariantCreateView(StaffAPIView):
         stock_quantity = fields.pop("stock_quantity", 0)
 
         variant = create_variant(
-            product=selectors.get_product(product_id=product_id),
+            product=selectors.get_product_row(product_id=product_id),
             fields=fields,
             stock_quantity=stock_quantity,
         )
@@ -183,7 +183,9 @@ class ProductImageCreateView(StaffAPIView):
     def post(self, request: Request, product_id: UUID) -> Response:
         fields = _validated(ImageCreateSerializer, request)
 
-        image = add_product_image(product=selectors.get_product(product_id=product_id), **fields)
+        image = add_product_image(
+            product=selectors.get_product_row(product_id=product_id), **fields
+        )
 
         return Response(AdminImageSerializer(image).data, status=status.HTTP_201_CREATED)
 
