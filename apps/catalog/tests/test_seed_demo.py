@@ -1,15 +1,23 @@
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from PIL import Image
 
-from apps.catalog.models import Category, Color, Product, ProductImage, ProductVariant, Size
+from apps.catalog.management.commands._seed_catalogue import BRANDS, PRODUCTS
+from apps.catalog.models import (
+    Brand,
+    Category,
+    Product,
+    ProductImage,
+    ProductVariant,
+    Shade,
+    Size,
+)
 
 
 @pytest.fixture
 def seeded(db, settings, tmp_path):
     settings.DEBUG = True
-    # test.py points STORAGES at a filesystem backend already; this keeps the
-    # seeded images out of the repository's own media directory.
     settings.MEDIA_ROOT = tmp_path
     call_command("seed_demo")
 
@@ -25,75 +33,77 @@ def test_seeding_outside_debug_is_refused(settings):
 
 
 @pytest.mark.django_db
-def test_seed_populates_the_lookup_tables_a_variant_needs(seeded):
-    # Both ship empty, and an empty size table means no variant can exist at all.
-    assert Size.objects.count() == 6
-    assert Color.objects.count() == 5
+def test_seed_creates_brands_with_logos(seeded):
+    assert Brand.objects.count() == len(BRANDS)
+    assert not Brand.objects.filter(logo="").exists()
 
 
 @pytest.mark.django_db
-def test_seed_creates_a_one_level_category_tree(seeded):
-    assert Category.objects.filter(parent__isnull=True).count() == 2
-    assert Category.objects.filter(parent__isnull=False).count() == 4
-    # Category.parent allows one level and nothing in the database enforces it,
-    # so the seed must not be the thing that builds a deeper tree.
+def test_seed_creates_the_cosmetics_category_tree(seeded):
+    roots = set(Category.objects.filter(parent__isnull=True).values_list("slug", flat=True))
+
+    assert roots == {"skincare", "makeup", "haircare", "fragrance", "body"}
+    assert set(Category.objects.filter(parent__slug="makeup").values_list("slug", flat=True)) == {
+        "face",
+        "eyes",
+        "lips",
+    }
     assert not Category.objects.filter(parent__parent__isnull=False).exists()
 
 
 @pytest.mark.django_db
-def test_seed_leaves_one_product_unpublished(seeded):
-    assert Product.objects.count() == 9
-    assert Product.objects.filter(is_published=True).count() == 8
-    assert Product.objects.get(slug="unreleased-drop-tee").is_published is False
+def test_foundations_and_lipsticks_come_in_four_to_six_shades(seeded):
+    for slug in ("silk-foundation", "velvet-matte-lipstick", "satin-lip-crayon"):
+        shades = ProductVariant.objects.filter(product__slug=slug, shade__isnull=False)
+
+        assert 4 <= shades.count() <= 6
+
+
+@pytest.mark.django_db
+def test_perfumes_come_in_50_and_100_ml(seeded):
+    sizes = set(
+        ProductVariant.objects.filter(product__category__slug="fragrance").values_list(
+            "size__slug", flat=True
+        )
+    )
+
+    assert sizes == {"50-ml", "100-ml"}
+
+
+@pytest.mark.django_db
+def test_skincare_is_shadeless(seeded):
+    assert not ProductVariant.objects.filter(
+        product__category__parent__slug="skincare", shade__isnull=False
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_seed_includes_the_shapes_the_storefront_has_to_survive(seeded):
+    assert Product.objects.filter(is_published=False).count() == 1
+    assert not Product.objects.get(slug="shea-body-butter").images.exists()
+    assert not ProductVariant.objects.filter(
+        product__slug="saffron-glow-oil", stock_quantity__gt=0
+    ).exists()
+    assert ProductVariant.objects.filter(price_override__isnull=False).exists()
+    assert ProductVariant.objects.filter(stock_quantity__lte=5).count() >= 5
 
 
 @pytest.mark.django_db
 def test_running_twice_creates_no_duplicates(seeded):
     call_command("seed_demo")
 
-    assert Product.objects.count() == 9
-    assert Size.objects.count() == 6
-    assert ProductVariant.objects.filter(sku="BLT-M-BLA").count() == 1
+    assert Product.objects.count() == len(PRODUCTS)
+    assert Brand.objects.count() == len(BRANDS)
+    assert Shade.objects.filter(slug="warm-beige").count() == 1
+    assert Size.objects.filter(slug="30-ml").count() == 1
 
 
 @pytest.mark.django_db
 def test_flush_removes_the_seeded_products_and_reseeds(seeded):
     call_command("seed_demo", flush=True)
 
-    assert Product.objects.count() == 9
-    assert ProductVariant.objects.filter(product__slug="boxy-logo-tee").count() == 7
-
-
-@pytest.mark.django_db
-def test_seed_includes_the_shapes_the_storefront_has_to_survive(seeded):
-    # Each of these is a state a merchant can produce and a tidy fixture omits.
-    assert not Product.objects.get(slug="pleated-wide-short").images.exists()
-    assert Product.objects.get(slug="single-stitch-cap").variants.count() == 1
-    assert (
-        ProductVariant.objects.filter(
-            product__slug="overdyed-work-jacket", stock_quantity__gt=0
-        ).count()
-        == 0
-    )
-    assert (
-        ProductVariant.objects.filter(
-            product__slug="washed-pocket-tee", price_override__isnull=False
-        ).count()
-        == 1
-    )
-
-
-@pytest.mark.django_db
-def test_seed_gives_a_sparse_variant_grid_not_a_cartesian_product(seeded):
-    # XXL exists in one colour only. A picker built from independent size and
-    # colour lists would offer XXL in olive, which was never made.
-    variants = ProductVariant.objects.filter(product__slug="washed-pocket-tee")
-
-    assert variants.filter(size__slug="xxl").count() == 1
-    assert (
-        variants.count()
-        < variants.values("size").distinct().count() * variants.values("color").distinct().count()
-    )
+    assert Product.objects.count() == len(PRODUCTS)
+    assert ProductVariant.objects.filter(product__slug="silk-foundation").count() == 6
 
 
 @pytest.mark.django_db
@@ -103,9 +113,9 @@ def test_every_product_with_images_has_exactly_one_primary(seeded):
 
 
 @pytest.mark.django_db
-def test_seeded_images_do_not_collide_between_products(seeded):
-    # The same source file backs several products; without a per-product name the
-    # storage backend would suffix the collisions and the names would drift.
-    names = [image.image.name for image in ProductImage.objects.all()]
+def test_seeded_images_are_generated_pngs(seeded):
+    image = ProductImage.objects.get(product__slug="silk-foundation", is_primary=True)
 
-    assert len(names) == len(set(names))
+    with Image.open(image.image.path) as png:
+        assert png.format == "PNG"
+        assert png.size == (800, 1000)

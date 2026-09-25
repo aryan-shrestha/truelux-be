@@ -28,12 +28,11 @@ def _locked_variants(quantities: Mapping[UUID, int]) -> dict[UUID, ProductVarian
         # alongside select_related() would also lock the joined product rows,
         # which this operation never writes and which other checkouts need.
         .select_for_update(of=("self",))
-        # Not speculative: the caller reads `.price`, which falls through to
-        # product.base_price, availability reads product.is_published, and
-        # place_order snapshots the product name and the size and colour names onto
-        # the order line. Without the joins those reads are two queries per variant
-        # while this transaction holds the row locks.
-        .select_related("product", "size", "color")
+        # Not speculative: `.price` falls through to product.base_price, availability
+        # reads the product and its brand, and place_order snapshots the size and
+        # shade names. Without the joins those are queries per variant while this
+        # transaction holds the row locks.
+        .select_related("product__brand", "size", "shade")
         .filter(pk__in=quantities.keys())
         # ADR 0004: locks are always taken in ascending pk order. Two carts holding
         # the same two variants in opposite orders deadlock, and Postgres resolves
@@ -52,8 +51,9 @@ def _locked_variants(quantities: Mapping[UUID, int]) -> dict[UUID, ProductVarian
 
 
 def decrement_variant_stock(*, quantities: Mapping[UUID, int]) -> dict[UUID, ProductVariant]:
-    """Raises VariantUnavailable for an unknown or unpublished variant, and
-    InsufficientStock when a variant cannot cover its requested quantity.
+    """Raises VariantUnavailable for an unknown variant or one hidden from the
+    storefront (unpublished product or inactive brand), and InsufficientStock when a
+    variant cannot cover its requested quantity.
 
     Returns the locked variants so the caller can read prices without refetching.
     """
@@ -62,13 +62,13 @@ def decrement_variant_stock(*, quantities: Mapping[UUID, int]) -> dict[UUID, Pro
     with transaction.atomic():
         locked = _locked_variants(quantities)
 
-        unpublished = sorted(
+        hidden = sorted(
             str(variant_id)
             for variant_id, variant in locked.items()
-            if not variant.product.is_published
+            if not (variant.product.is_published and variant.product.brand.is_active)
         )
-        if unpublished:
-            raise VariantUnavailable(details={"variant_ids": unpublished})
+        if hidden:
+            raise VariantUnavailable(details={"variant_ids": hidden})
 
         for variant_id, quantity in quantities.items():
             variant = locked[variant_id]

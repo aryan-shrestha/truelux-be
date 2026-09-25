@@ -7,12 +7,12 @@ from apps.orders.models import Order, OrderItem
 class OrderItemSerializer(serializers.ModelSerializer[OrderItem]):
     class Meta:
         model = OrderItem
-        # The snapshot columns, not the variant: an order line must read the same
-        # after the catalogue renames the product or retires the colour.
+        # The snapshot columns, not the variant: a line must read the same after the
+        # catalogue renames the product or retires the shade.
         fields = (
             "product_name",
             "variant_size",
-            "variant_color",
+            "variant_shade",
             "sku",
             "quantity",
             "unit_price",

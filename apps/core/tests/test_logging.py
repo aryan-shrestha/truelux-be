@@ -109,10 +109,10 @@ def test_redaction_leaves_ordinary_paths_alone():
         pathname=__file__,
         lineno=1,
         msg="%s: %s",
-        args=("Internal Server Error", "/api/v1/products/boxy-logo-tee/"),
+        args=("Internal Server Error", "/api/v1/products/silk-foundation/"),
         exc_info=None,
     )
 
     RedactUUIDs().filter(record)
 
-    assert record.getMessage() == "Internal Server Error: /api/v1/products/boxy-logo-tee/"
+    assert record.getMessage() == "Internal Server Error: /api/v1/products/silk-foundation/"

@@ -1,6 +1,14 @@
 from rest_framework import serializers
 
-from apps.catalog.models import Category, Color, Product, ProductImage, ProductVariant, Size
+from apps.catalog.models import (
+    Brand,
+    Category,
+    Product,
+    ProductImage,
+    ProductVariant,
+    Shade,
+    Size,
+)
 
 
 class SizeSerializer(serializers.ModelSerializer[Size]):
@@ -9,10 +17,28 @@ class SizeSerializer(serializers.ModelSerializer[Size]):
         fields = ("name", "slug")
 
 
-class ColorSerializer(serializers.ModelSerializer[Color]):
+class ShadeSerializer(serializers.ModelSerializer[Shade]):
     class Meta:
-        model = Color
+        model = Shade
+        fields = ("name", "slug", "hex_code")
+
+
+class BrandSummarySerializer(serializers.ModelSerializer[Brand]):
+    class Meta:
+        model = Brand
         fields = ("name", "slug")
+
+
+class BrandSerializer(serializers.ModelSerializer[Brand]):
+    logo_url = serializers.SerializerMethodField()
+    product_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Brand
+        fields = ("name", "slug", "description", "logo_url", "product_count")
+
+    def get_logo_url(self, obj: Brand) -> str | None:
+        return obj.logo.url if obj.logo else None
 
 
 class CategorySerializer(serializers.ModelSerializer[Category]):
@@ -39,21 +65,21 @@ class ProductImageSerializer(serializers.ModelSerializer[ProductImage]):
 
 class ProductVariantSerializer(serializers.ModelSerializer[ProductVariant]):
     size = SizeSerializer(read_only=True)
-    color = ColorSerializer(read_only=True)
+    shade = ShadeSerializer(read_only=True, allow_null=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     in_stock = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductVariant
-        # `stock_quantity` is deliberately absent, here and everywhere else: exact
-        # inventory is commercially sensitive and this endpoint is public.
-        fields = ("id", "size", "color", "price", "in_stock")
+        # No `stock_quantity`: exact inventory is commercially sensitive and this is public.
+        fields = ("id", "size", "shade", "price", "in_stock")
 
     def get_in_stock(self, obj: ProductVariant) -> bool:
         return obj.stock_quantity > 0
 
 
 class ProductListSerializer(serializers.ModelSerializer[Product]):
+    brand = BrandSummarySerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     primary_image = serializers.SerializerMethodField()
     in_stock = serializers.BooleanField(read_only=True)
@@ -66,15 +92,14 @@ class ProductListSerializer(serializers.ModelSerializer[Product]):
             "name",
             "slug",
             "base_price",
+            "brand",
             "category",
             "primary_image",
             "in_stock",
         )
 
     def get_primary_image(self, obj: Product) -> dict[str, str] | None:
-        # Reads the prefetched images rather than querying for the primary one.
-        # A merchant who never ticked "primary" still gets a card image, which is
-        # why this falls back to the first image by sort_order.
+        # Reads the prefetch; falls back to the first image when none is primary.
         images = list(obj.images.all())
         if not images:
             return None

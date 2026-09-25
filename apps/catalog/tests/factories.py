@@ -3,7 +3,15 @@ from decimal import Decimal
 import factory
 from factory.django import DjangoModelFactory
 
-from apps.catalog.models import Category, Color, Product, ProductImage, ProductVariant, Size
+from apps.catalog.models import (
+    Brand,
+    Category,
+    Product,
+    ProductImage,
+    ProductVariant,
+    Shade,
+    Size,
+)
 
 
 class SizeFactory(DjangoModelFactory[Size]):
@@ -14,12 +22,21 @@ class SizeFactory(DjangoModelFactory[Size]):
     slug = factory.Sequence(lambda n: f"size-{n}")
 
 
-class ColorFactory(DjangoModelFactory[Color]):
+class BrandFactory(DjangoModelFactory[Brand]):
     class Meta:
-        model = Color
+        model = Brand
 
-    name = factory.Sequence(lambda n: f"Colour {n}")
-    slug = factory.Sequence(lambda n: f"colour-{n}")
+    name = factory.Sequence(lambda n: f"Brand {n}")
+    slug = factory.Sequence(lambda n: f"brand-{n}")
+
+
+class ShadeFactory(DjangoModelFactory[Shade]):
+    class Meta:
+        model = Shade
+
+    name = factory.Sequence(lambda n: f"Shade {n}")
+    slug = factory.Sequence(lambda n: f"shade-{n}")
+    hex_code = "#D8A47F"
 
 
 class CategoryFactory(DjangoModelFactory[Category]):
@@ -36,6 +53,7 @@ class ProductFactory(DjangoModelFactory[Product]):
 
     name = factory.Sequence(lambda n: f"Product {n}")
     slug = factory.Sequence(lambda n: f"product-{n}")
+    brand = factory.SubFactory(BrandFactory)
     category = factory.SubFactory(CategoryFactory)
     base_price = Decimal("1000.00")
 
@@ -46,7 +64,6 @@ class ProductVariantFactory(DjangoModelFactory[ProductVariant]):
 
     product = factory.SubFactory(ProductFactory)
     size = factory.SubFactory(SizeFactory)
-    color = factory.SubFactory(ColorFactory)
     sku = factory.Sequence(lambda n: f"SKU-{n}")
 
 

@@ -6,31 +6,31 @@ from django.db import IntegrityError
 from django.db.models import ProtectedError
 
 from apps.catalog.tests.factories import (
-    ColorFactory,
     ProductFactory,
     ProductImageFactory,
     ProductVariantFactory,
+    ShadeFactory,
     SizeFactory,
 )
 
 
 @pytest.mark.django_db
-def test_duplicate_size_and_color_for_product_violates_constraint():
+def test_duplicate_size_and_shade_for_product_violates_constraint():
     variant = ProductVariantFactory()
 
     with pytest.raises(IntegrityError):
         ProductVariantFactory(
             product=variant.product,
             size=variant.size,
-            color=variant.color,
+            shade=variant.shade,
         )
 
 
 @pytest.mark.django_db
-def test_same_size_and_color_on_another_product_is_allowed():
+def test_same_size_and_shade_on_another_product_is_allowed():
     variant = ProductVariantFactory()
 
-    other = ProductVariantFactory(size=variant.size, color=variant.color)
+    other = ProductVariantFactory(size=variant.size, shade=variant.shade)
 
     assert other.product != variant.product
 
@@ -100,12 +100,12 @@ def test_deleting_a_size_in_use_is_protected():
 
 
 @pytest.mark.django_db
-def test_deleting_an_unused_color_is_allowed():
-    color = ColorFactory()
+def test_deleting_an_unused_shade_is_allowed():
+    shade = ShadeFactory()
 
-    color.delete()
+    shade.delete()
 
-    assert not type(color).objects.filter(pk=color.pk).exists()
+    assert not type(shade).objects.filter(pk=shade.pk).exists()
 
 
 @pytest.mark.django_db

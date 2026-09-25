@@ -34,7 +34,7 @@ class OrderItemFactory(DjangoModelFactory[OrderItem]):
     variant = factory.SubFactory(ProductVariantFactory)
     quantity = 1
     unit_price = Decimal("4500.00")
-    product_name = "Linen Shirt"
-    variant_size = "M"
-    variant_color = "Black"
+    product_name = "Silk Foundation"
+    variant_size = "30 ml"
+    variant_shade = "Warm Beige"
     sku = factory.Sequence(lambda n: f"SKU-ORDER-{n}")

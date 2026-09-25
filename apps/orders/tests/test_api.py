@@ -25,14 +25,14 @@ def _detail_url(order):
 
 def test_order_detail_by_access_token_returns_200(api_client):
     order = OrderFactory.create(status=OrderStatus.SHIPPED)
-    OrderItemFactory.create(order=order, product_name="Linen Shirt", quantity=2)
+    OrderItemFactory.create(order=order, product_name="Rose Milk Cleanser", quantity=2)
 
     response = api_client.get(_detail_url(order))
 
     assert response.status_code == 200
     assert response.data["order_number"] == order.order_number
     assert response.data["status"] == "shipped"
-    assert response.data["items"][0]["product_name"] == "Linen Shirt"
+    assert response.data["items"][0]["product_name"] == "Rose Milk Cleanser"
     assert response.data["items"][0]["quantity"] == 2
 
 

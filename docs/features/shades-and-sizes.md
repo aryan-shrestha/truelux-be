@@ -1,6 +1,6 @@
 # Shades and sizes
 
-Status: Planned
+Status: Implemented
 
 Last updated: 2026-09-25
 
@@ -59,6 +59,64 @@ variant is still the stock and SKU unit.
 
 ---
 
+## Implemented
+
+- `apps/catalog/models.py` — `Shade` with the `shade_hex_code_format` check;
+  `ProductVariant.shade` nullable `PROTECT`; `product_variant_unique_product_size_shade`
+  with `nulls_distinct=False`. `Color` no longer exists.
+- `apps/catalog/selectors.py` — `list_shades_in_use` / `list_sizes_in_use` keep a row
+  only when an `Exists` subquery finds a variant of a published product of an active
+  brand, so a value used twice is listed once.
+- `apps/catalog/filters.py` — `?shade=<slug>` replaces `?color=` (a variant join with
+  `.distinct()`, like `?size=`).
+- `apps/catalog/serializers.py` — `ShadeSerializer` (`name`, `slug`, `hex_code`);
+  variants render `shade` as that object or `null`.
+- `apps/catalog/views.py`, `urls.py` — `ShadeListView` and `SizeListView` at
+  `shades/` and `sizes/`: `AllowAny`, `catalog` scope, unpaginated.
+- `apps/orders/models.py` — `OrderItem.variant_shade` (`blank=True`); `place_order`
+  stores the shade name or `""`. Order serializers, the Django admin and the emails
+  read it; the emails omit the shade when it is empty.
+- `apps/catalog/admin.py` — `ShadeAdmin`; "Generate variants" takes optional shades
+  and creates shadeless variants when none are ticked. SKUs omit the shade part then.
+- Seed data: 14 sizes (grams, millilitres, `One size`) and 23 shades with hex codes.
+
+---
+
+## Remaining
+
+None.
+
+---
+
+## Decisions
+
+### Decision: `NULLS NOT DISTINCT` on the variant uniqueness constraint
+
+**Decision**
+
+Declared with Django's `UniqueConstraint(nulls_distinct=False)`.
+
+**Reason**
+
+ADR 0010. Without it PostgreSQL treats every `NULL` shade as distinct and a product
+could hold any number of shadeless variants of one size.
+
+**Consequence**
+
+PostgreSQL 15+ is required. The local compose file runs 16; a Homebrew Postgres 14
+on port 5432 would fail the migration.
+
+---
+
+## Gotchas
+
+- `grep -ri colou\?r apps/` still matches the CSS `color:` properties in the email
+  templates. Nothing in the domain is called colour any more.
+- `/shades/` and `/sizes/` are facets, not the lookup tables: an unused shade, or one
+  used only by hidden products, is not listed. The admin API lists every row.
+
+---
+
 ## API
 
 ### `GET /api/v1/shades/` and `GET /api/v1/sizes/`
@@ -106,11 +164,22 @@ Reads are public. Writes go through `admin-api`.
 
 ## Tests
 
-To be written:
+- `apps/catalog/tests/test_shades_and_sizes.py` — the hex check rejects `"red"`,
+  `"#FFF"` and `"#GGGGGG"`; two shadeless variants of one product and size violate
+  the constraint; `?shade=` excludes shadeless products; `shade` is an object or
+  `null`; `/shades/` and `/sizes/` exclude unused and hidden-only values, in
+  `sort_order`.
+- `apps/orders/tests/test_checkout.py` — the snapshot stores the shade name, and
+  `""` for a shadeless variant.
+- `apps/catalog/tests/test_admin.py::test_generating_with_no_shade_creates_shadeless_variants`.
 
-- The hex check rejects `"red"`, `"#FFF"` and `"#GGGGGG"`.
-- Two shadeless variants of the same product and size violate the unique
-  constraint.
-- `?shade=` filters; shadeless products are excluded by a shade filter.
-- `/shades/` and `/sizes/` exclude values used only by hidden products.
-- Checkout snapshots `variant_shade` and stores `""` for a shadeless variant.
+---
+
+## Files
+
+```text
+apps/catalog/{models,selectors,filters,serializers,views,urls,admin}.py
+apps/catalog/tests/test_shades_and_sizes.py
+apps/orders/{models,services,serializers,admin}.py
+apps/orders/templates/orders/email/
+```

@@ -8,9 +8,9 @@ from django.urls import reverse
 from apps.catalog.admin import generate_sku
 from apps.catalog.models import ProductVariant
 from apps.catalog.tests.factories import (
-    ColorFactory,
     ProductFactory,
     ProductVariantFactory,
+    ShadeFactory,
     SizeFactory,
 )
 from apps.users.tests.factories import UserFactory
@@ -25,7 +25,7 @@ def admin_client(client):
     return client
 
 
-def _generate(admin_client, product, sizes, colors):
+def _generate(admin_client, product, sizes, shades):
     return admin_client.post(
         reverse("admin:catalog_product_changelist"),
         {
@@ -33,7 +33,7 @@ def _generate(admin_client, product, sizes, colors):
             ACTION_CHECKBOX_NAME: [str(product.pk)],
             "apply": "1",
             "sizes": [str(size.pk) for size in sizes],
-            "colors": [str(color.pk) for color in colors],
+            "shades": [str(shade.pk) for shade in shades],
         },
         follow=True,
     )
@@ -42,9 +42,9 @@ def _generate(admin_client, product, sizes, colors):
 def test_generate_variants_creates_missing_combinations(admin_client):
     product = ProductFactory.create()
     sizes = [SizeFactory.create(slug=slug, name=slug.upper()) for slug in ("s", "m", "l")]
-    colors = [ColorFactory.create(slug=slug, name=slug.title()) for slug in ("black", "bone")]
+    shades = [ShadeFactory.create(slug=slug, name=slug.title()) for slug in ("black", "bone")]
 
-    _generate(admin_client, product, sizes, colors)
+    _generate(admin_client, product, sizes, shades)
 
     # Fifteen rows typed by hand is fifteen chances to mistype a SKU, which is why
     # this action exists at all.
@@ -76,8 +76,8 @@ def test_the_action_asks_before_it_acts(admin_client, url_name, action, factory)
 def test_generate_variants_skips_existing_combinations(admin_client):
     product = ProductFactory.create()
     medium = SizeFactory.create(slug="m", name="M")
-    black = ColorFactory.create(slug="black", name="Black")
-    ProductVariantFactory.create(product=product, size=medium, color=black, sku="KEEP-ME")
+    black = ShadeFactory.create(slug="black", name="Black")
+    ProductVariantFactory.create(product=product, size=medium, shade=black, sku="KEEP-ME")
     large = SizeFactory.create(slug="l", name="L")
 
     _generate(admin_client, product, [medium, large], [black])
@@ -90,27 +90,27 @@ def test_generate_variants_skips_existing_combinations(admin_client):
 def test_generated_skus_do_not_collide_across_products(admin_client):
     # The scheme is built from the product slug precisely so that two products
     # whose names share initials cannot produce the same SKU.
-    first = ProductFactory.create(name="Boxy Logo Tee", slug="boxy-logo-tee")
-    second = ProductFactory.create(name="Black Linen Trouser", slug="black-linen-trouser")
+    first = ProductFactory.create(name="Silk Foundation", slug="silk-foundation")
+    second = ProductFactory.create(name="Soft Focus Primer", slug="soft-focus-primer")
     medium = SizeFactory.create(slug="m", name="M")
-    black = ColorFactory.create(slug="black", name="Black")
+    black = ShadeFactory.create(slug="black", name="Black")
 
     _generate(admin_client, first, [medium], [black])
     _generate(admin_client, second, [medium], [black])
 
     skus = set(ProductVariant.objects.values_list("sku", flat=True))
-    assert skus == {"BOXY-LOGO-TEE-M-BLACK", "BLACK-LINEN-TROUSER-M-BLACK"}
+    assert skus == {"SILK-FOUNDATION-M-BLACK", "SOFT-FOCUS-PRIMER-M-BLACK"}
 
 
 def test_a_generated_sku_fits_the_column():
     product = ProductFactory.build(slug="a-product-with-an-unreasonably-long-slug-" + "x" * 40)
     size = SizeFactory.build(slug="xxl")
-    color = ColorFactory.build(slug="washed-indigo")
+    shade = ShadeFactory.build(slug="rose-nude")
 
-    sku = generate_sku(product=product, size=size, color=color)
+    sku = generate_sku(product=product, size=size, shade=shade)
 
     assert len(sku) <= 64
-    assert sku.endswith("-XXL-WASHED-INDIGO")
+    assert sku.endswith("-XXL-ROSE-NUDE")
 
 
 def test_a_truncated_slug_collision_is_reported_not_raised(admin_client):
@@ -121,10 +121,10 @@ def test_a_truncated_slug_collision_is_reported_not_raised(admin_client):
     first = ProductFactory.create(slug=f"{stem}-black")
     second = ProductFactory.create(slug=f"{stem}-white")
     size = SizeFactory.create(slug="xxl", name="XXL")
-    color = ColorFactory.create(slug="washed-indigo", name="Washed Indigo")
+    shade = ShadeFactory.create(slug="rose-nude", name="Rose Nude")
 
-    _generate(admin_client, first, [size], [color])
-    response = _generate(admin_client, second, [size], [color])
+    _generate(admin_client, first, [size], [shade])
+    response = _generate(admin_client, second, [size], [shade])
 
     assert response.status_code == 200
     assert first.variants.count() == 1
@@ -207,7 +207,7 @@ def test_a_restock_and_a_sale_do_not_interleave():
     "url_name",
     [
         "admin:catalog_size_changelist",
-        "admin:catalog_color_changelist",
+        "admin:catalog_shade_changelist",
         "admin:catalog_category_changelist",
         "admin:catalog_product_changelist",
         "admin:catalog_productvariant_changelist",
@@ -220,3 +220,16 @@ def test_every_catalogue_changelist_renders(admin_client, url_name):
     ProductVariantFactory.create()
 
     assert admin_client.get(reverse(url_name)).status_code == 200
+
+
+def test_generating_with_no_shade_creates_shadeless_variants(admin_client):
+    product = ProductFactory.create(slug="rose-water-toner")
+    sizes = [SizeFactory.create(slug=slug, name=slug) for slug in ("100-ml", "200-ml")]
+
+    _generate(admin_client, product, sizes, [])
+
+    assert product.variants.filter(shade__isnull=True).count() == 2
+    assert set(product.variants.values_list("sku", flat=True)) == {
+        "ROSE-WATER-TONER-100-ML",
+        "ROSE-WATER-TONER-200-ML",
+    }

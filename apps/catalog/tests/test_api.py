@@ -7,10 +7,10 @@ from rest_framework.throttling import SimpleRateThrottle
 
 from apps.catalog.tests.factories import (
     CategoryFactory,
-    ColorFactory,
     ProductFactory,
     ProductImageFactory,
     ProductVariantFactory,
+    ShadeFactory,
     SizeFactory,
 )
 
@@ -34,13 +34,13 @@ def _product_with_variants(*, variant_count: int = 2, **kwargs):
 
 
 def test_product_list_returns_200_for_anonymous_user(api_client):
-    _product_with_variants(name="Linen Shirt")
+    _product_with_variants(name="Rose Milk Cleanser")
 
     response = api_client.get(reverse("v1:product-list"))
 
     assert response.status_code == 200
     assert response.data["count"] == 1
-    assert response.data["results"][0]["name"] == "Linen Shirt"
+    assert response.data["results"][0]["name"] == "Rose Milk Cleanser"
 
 
 def test_product_list_excludes_unpublished_products(api_client):
@@ -54,12 +54,12 @@ def test_product_list_excludes_unpublished_products(api_client):
 
 
 def test_product_detail_returns_variants_and_images(api_client):
-    product = _product_with_variants(slug="linen-shirt", base_price=Decimal("4500.00"))
+    product = _product_with_variants(slug="rose-milk-cleanser", base_price=Decimal("4500.00"))
 
     response = api_client.get(reverse("v1:product-detail", args=[product.slug]))
 
     assert response.status_code == 200
-    assert response.data["slug"] == "linen-shirt"
+    assert response.data["slug"] == "rose-milk-cleanser"
     assert len(response.data["variants"]) == 2
     assert response.data["variants"][0]["price"] == "4500.00"
     assert len(response.data["images"]) == 1
@@ -100,8 +100,8 @@ def test_product_detail_query_count_is_constant(
 ):
     product = _product_with_variants(variant_count=variant_count)
 
-    # product + variants (with size and colour joined) + images. ADR 0007 made
-    # size and colour a third level; without the select_related on the inner
+    # product + variants (with size and shade joined) + images. ADR 0007 made
+    # size and shade a third level; without the select_related on the inner
     # queryset this grows by two per variant.
     with django_assert_num_queries(3):
         response = api_client.get(reverse("v1:product-detail", args=[product.slug]))
@@ -121,26 +121,26 @@ def test_product_serializer_does_not_expose_stock_quantity(api_client):
 
 
 def test_filter_by_size_returns_only_matching_products(api_client):
-    medium = SizeFactory(name="M", slug="m")
+    medium = SizeFactory(name="30 ml", slug="30-ml")
     large = SizeFactory(name="L", slug="l")
     wanted = ProductFactory(is_published=True, slug="wanted")
     ProductVariantFactory(product=wanted, size=medium)
     unwanted = ProductFactory(is_published=True, slug="unwanted")
     ProductVariantFactory(product=unwanted, size=large)
 
-    response = api_client.get(reverse("v1:product-list"), {"size": "m"})
+    response = api_client.get(reverse("v1:product-list"), {"size": "30-ml"})
 
     slugs = [result["slug"] for result in response.data["results"]]
     assert slugs == ["wanted"]
 
 
-def test_filter_by_size_does_not_duplicate_a_product_sold_in_several_colours(api_client):
-    medium = SizeFactory(name="M", slug="m")
+def test_filter_by_size_does_not_duplicate_a_product_sold_in_several_shades(api_client):
+    medium = SizeFactory(name="30 ml", slug="30-ml")
     product = ProductFactory(is_published=True)
     for _ in range(3):
-        ProductVariantFactory(product=product, size=medium, color=ColorFactory())
+        ProductVariantFactory(product=product, size=medium, shade=ShadeFactory())
 
-    response = api_client.get(reverse("v1:product-list"), {"size": "m"})
+    response = api_client.get(reverse("v1:product-list"), {"size": "30-ml"})
 
     assert response.data["count"] == 1
 
@@ -159,14 +159,14 @@ def test_in_stock_filter_does_not_duplicate_rows(api_client):
 
 
 def test_filter_by_category_and_price_range(api_client):
-    shirts = CategoryFactory(slug="shirts")
-    wanted = ProductFactory(is_published=True, category=shirts, base_price=Decimal("4500.00"))
-    ProductFactory(is_published=True, category=shirts, base_price=Decimal("9000.00"))
+    cleansers = CategoryFactory(slug="cleansers")
+    wanted = ProductFactory(is_published=True, category=cleansers, base_price=Decimal("4500.00"))
+    ProductFactory(is_published=True, category=cleansers, base_price=Decimal("9000.00"))
     ProductFactory(is_published=True, base_price=Decimal("4500.00"))
 
     response = api_client.get(
         reverse("v1:product-list"),
-        {"category": "shirts", "min_price": "1000", "max_price": "5000"},
+        {"category": "cleansers", "min_price": "1000", "max_price": "5000"},
     )
 
     slugs = [result["slug"] for result in response.data["results"]]
@@ -174,16 +174,16 @@ def test_filter_by_category_and_price_range(api_client):
 
 
 def test_search_matches_name_and_description(api_client):
-    by_name = ProductFactory(is_published=True, name="Linen Shirt", slug="by-name")
+    by_name = ProductFactory(is_published=True, name="Rose Milk Cleanser", slug="by-name")
     by_description = ProductFactory(
         is_published=True,
-        name="Summer Trousers",
+        name="Arctic Water Cream",
         slug="by-description",
-        description="Cut from Irish linen.",
+        description="Made with rose water.",
     )
-    ProductFactory(is_published=True, name="Wool Coat", slug="no-match")
+    ProductFactory(is_published=True, name="Kohl Kajal", slug="no-match")
 
-    response = api_client.get(reverse("v1:product-list"), {"search": "linen"})
+    response = api_client.get(reverse("v1:product-list"), {"search": "rose"})
 
     slugs = {result["slug"] for result in response.data["results"]}
     assert slugs == {by_name.slug, by_description.slug}
@@ -215,9 +215,9 @@ def test_variants_are_ordered_by_size_sort_order(api_client):
 
 
 def test_category_list_returns_roots_with_their_children(api_client, django_assert_num_queries):
-    shirts = CategoryFactory(name="Shirts", slug="shirts")
-    CategoryFactory(name="Linen", slug="linen", parent=shirts)
-    CategoryFactory(name="Trousers", slug="trousers")
+    cleansers = CategoryFactory(name="Cleansers", slug="cleansers")
+    CategoryFactory(name="Foaming", slug="foaming", parent=cleansers)
+    CategoryFactory(name="Serums", slug="serums")
 
     # Roots plus the children prefetch, and no count query: the tree is unpaginated.
     with django_assert_num_queries(2):
@@ -225,12 +225,12 @@ def test_category_list_returns_roots_with_their_children(api_client, django_asse
 
     assert response.status_code == 200
     # Unpaginated, so navigation cannot be truncated by a page size.
-    assert [category["slug"] for category in response.data] == ["shirts", "trousers"]
-    assert [child["slug"] for child in response.data[0]["children"]] == ["linen"]
+    assert [category["slug"] for category in response.data] == ["cleansers", "serums"]
+    assert [child["slug"] for child in response.data[0]["children"]] == ["foaming"]
 
 
 def test_write_methods_are_not_routed(api_client):
-    response = api_client.post(reverse("v1:product-list"), {"name": "Linen Shirt"})
+    response = api_client.post(reverse("v1:product-list"), {"name": "Rose Milk Cleanser"})
 
     assert response.status_code == 405
     assert response.data["error"]["code"] == "method_not_allowed"

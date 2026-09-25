@@ -104,14 +104,14 @@ def test_access_token_is_not_exposed_in_the_admin(admin_client):
 
 def test_order_items_cannot_be_edited(admin_client):
     order = OrderFactory.create()
-    OrderItemFactory.create(order=order, product_name="Linen Shirt")
+    OrderItemFactory.create(order=order, product_name="Rose Milk Cleanser")
 
     response = admin_client.get(reverse("admin:orders_order_change", args=[order.pk]))
 
     # Every line is a snapshot of what the customer bought; editing one rewrites
     # history.
     assert b'name="items-0-quantity"' not in response.content
-    assert b"Linen Shirt" in response.content
+    assert b"Rose Milk Cleanser" in response.content
 
 
 def test_resend_action_reports_a_failed_send_without_raising(admin_client):

@@ -196,7 +196,7 @@ def place_order(
                     unit_price=unit_price,
                     product_name=variant.product.name,
                     variant_size=variant.size.name,
-                    variant_color=variant.color.name,
+                    variant_shade=variant.shade.name if variant.shade else "",
                     sku=variant.sku,
                 )
             )

@@ -25,7 +25,7 @@ class OrderItemInline(admin.TabularInline):  # type: ignore[type-arg]  # not sub
         "variant",
         "product_name",
         "variant_size",
-        "variant_color",
+        "variant_shade",
         "sku",
         "quantity",
         "unit_price",

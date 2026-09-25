@@ -6,23 +6,26 @@ from django.db.models import QuerySet, Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
-from apps.catalog.models import Category, Color, Product, ProductImage, ProductVariant, Size
+from apps.catalog.models import (
+    Brand,
+    Category,
+    Product,
+    ProductImage,
+    ProductVariant,
+    Shade,
+    Size,
+)
 from apps.catalog.services import set_variant_stock
 
-# `sku` is generated, never typed, so the scheme is a convention the merchant reads
-# on packing lists and searches by. Built from the product slug and the two lookup
-# slugs, which makes it unique whenever the slug fits: the product slug is unique
-# and (product, size, color) is unique.
-#
-# It is *not* unique when the slug has to be truncated to fit the column -- two
-# products agreeing in their first forty-odd characters produce the same SKU. That
-# is rare and the merchant can fix it by shortening a slug, so the action reports
-# the clash rather than inventing an opaque suffix to avoid it.
+# Generated from the product, size and shade slugs, so it is unique whenever the
+# product slug fits. A truncated slug can collide with another product's; the
+# action reports that rather than inventing an opaque suffix.
 SKU_MAX_LENGTH = 64
 
 
-def generate_sku(*, product: Product, size: Size, color: Color) -> str:
-    suffix = f"-{size.slug}-{color.slug}".upper()
+def generate_sku(*, product: Product, size: Size, shade: Shade | None) -> str:
+    suffix = f"-{size.slug}" + (f"-{shade.slug}" if shade else "")
+    suffix = suffix.upper()
     stem = product.slug.upper()[: SKU_MAX_LENGTH - len(suffix)]
     return f"{stem}{suffix}"
 
@@ -30,11 +33,10 @@ def generate_sku(*, product: Product, size: Size, color: Color) -> str:
 class ProductVariantInline(admin.TabularInline):  # type: ignore[type-arg]  # not subscriptable at runtime
     model = ProductVariant
     extra = 0
-    # Stock is not editable here. An inline formset writes rows directly, and an
-    # absolute write with no lock discards a concurrent checkout's decrement. The
-    # "Adjust stock" action on ProductVariantAdmin is the locked path.
+    # An inline formset writes stock unlocked and would discard a concurrent
+    # checkout's decrement. "Adjust stock" on ProductVariantAdmin is the locked path.
     readonly_fields = ("stock_quantity",)
-    fields = ("size", "color", "sku", "price_override", "stock_quantity")
+    fields = ("size", "shade", "sku", "price_override", "stock_quantity")
 
 
 class ProductImageInline(admin.TabularInline):  # type: ignore[type-arg]  # not subscriptable at runtime
@@ -43,43 +45,45 @@ class ProductImageInline(admin.TabularInline):  # type: ignore[type-arg]  # not 
     fields = ("image", "alt_text", "sort_order", "is_primary")
 
 
+class LookupAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptable at runtime
+    list_display: tuple[str, ...] = ("name", "slug", "sort_order")
+    list_editable = ("sort_order",)
+    ordering = ("sort_order", "name")
+    prepopulated_fields = {"slug": ("name",)}
+    search_fields = ("name", "slug")
+
+
+@admin.register(Brand)
+class BrandAdmin(LookupAdmin):
+    list_display = ("name", "slug", "is_active", "sort_order")
+    list_filter = ("is_active",)
+
+
 @admin.register(Size)
-class SizeAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptable at runtime
-    # Plain catalogue editing, so ADR 0002 permits the naive ModelAdmin. This and
-    # ColorAdmin are what unblock the catalogue at all: both tables ship empty and
-    # a variant cannot be created until they hold rows.
-    list_display = ("name", "slug", "sort_order")
-    list_editable = ("sort_order",)
-    ordering = ("sort_order", "name")
-    prepopulated_fields = {"slug": ("name",)}
-    search_fields = ("name", "slug")
+class SizeAdmin(LookupAdmin):
+    pass
 
 
-@admin.register(Color)
-class ColorAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptable at runtime
-    list_display = ("name", "slug", "sort_order")
-    list_editable = ("sort_order",)
-    ordering = ("sort_order", "name")
-    prepopulated_fields = {"slug": ("name",)}
-    search_fields = ("name", "slug")
+@admin.register(Shade)
+class ShadeAdmin(LookupAdmin):
+    list_display = ("name", "slug", "hex_code", "sort_order")
 
 
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptable at runtime
+class CategoryAdmin(LookupAdmin):
     list_display = ("name", "slug", "parent", "sort_order")
-    list_editable = ("sort_order",)
     list_filter = ("parent",)
-    ordering = ("sort_order", "name")
-    prepopulated_fields = {"slug": ("name",)}
-    search_fields = ("name", "slug")
 
 
 class GenerateVariantsForm(forms.Form):
     sizes = forms.ModelMultipleChoiceField(
         queryset=Size.objects.all(), widget=forms.CheckboxSelectMultiple
     )
-    colors = forms.ModelMultipleChoiceField(
-        queryset=Color.objects.all(), widget=forms.CheckboxSelectMultiple
+    shades = forms.ModelMultipleChoiceField(
+        queryset=Shade.objects.all(),
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        help_text="Leave empty for a product without shades.",
     )
 
 
@@ -90,18 +94,16 @@ class AdjustStockForm(forms.Form):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptable at runtime
     inlines = (ProductVariantInline, ProductImageInline)
-    list_display = ("name", "category", "base_price", "is_published", "total_stock")
-    list_filter = ("is_published", "category")
+    list_display = ("name", "brand", "category", "base_price", "is_published", "total_stock")
+    list_filter = ("is_published", "brand", "category")
     ordering = ("sort_order", "-created_at")
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name", "slug")
     actions = ("generate_variants",)
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[Product]:
-        # Annotated rather than summed per row: the changelist renders every product
-        # on the page, and a property would be one query each.
         products: QuerySet[Product] = super().get_queryset(request)
-        return products.select_related("category").annotate(
+        return products.select_related("brand", "category").annotate(
             total_stock=Sum("variants__stock_quantity")
         )
 
@@ -113,11 +115,6 @@ class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscript
     def generate_variants(
         self, request: HttpRequest, queryset: QuerySet[Product]
     ) -> HttpResponse | None:
-        """Creates the missing size-and-colour combinations, skipping what exists.
-
-        A garment in five sizes and three colours is fifteen rows with a unique SKU
-        on each, which is fifteen chances to mistype one.
-        """
         form = GenerateVariantsForm(request.POST if "apply" in request.POST else None)
 
         if not form.is_valid():
@@ -132,40 +129,34 @@ class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscript
                 },
             )
 
-        sizes = form.cleaned_data["sizes"]
-        colors = form.cleaned_data["colors"]
+        sizes = list(form.cleaned_data["sizes"])
+        shades: list[Shade | None] = list(form.cleaned_data["shades"]) or [None]
         created = 0
         skipped = 0
-
         clashed: list[str] = []
 
         for product in queryset.prefetch_related("variants"):
-            existing = {(variant.size_id, variant.color_id) for variant in product.variants.all()}
+            existing = {(variant.size_id, variant.shade_id) for variant in product.variants.all()}
             missing = [
                 ProductVariant(
                     product=product,
                     size=size,
-                    color=color,
-                    sku=generate_sku(product=product, size=size, color=color),
+                    shade=shade,
+                    sku=generate_sku(product=product, size=size, shade=shade),
                 )
                 for size in sizes
-                for color in colors
-                if (size.pk, color.pk) not in existing
+                for shade in shades
+                if (size.pk, shade.pk if shade else None) not in existing
             ]
-            skipped += len(sizes) * len(colors) - len(missing)
+            skipped += len(sizes) * len(shades) - len(missing)
 
             try:
-                # Its own savepoint, not merely its own try: Django's changelist
-                # wraps the whole action in a transaction, so an IntegrityError
-                # caught without one leaves the connection unusable and every
-                # following query -- including the session read that renders the
-                # result page -- fails with TransactionManagementError.
+                # A savepoint, not just a try: the changelist wraps the action in a
+                # transaction, and an IntegrityError caught without one leaves the
+                # connection unusable for the rest of the request.
                 with transaction.atomic():
                     ProductVariant.objects.bulk_create(missing)
             except IntegrityError:
-                # A truncated slug collided with another product's. Reported per
-                # product rather than raised, so the rest of the selection still
-                # gets its variants.
                 clashed.append(product.slug)
             else:
                 created += len(missing)
@@ -188,24 +179,21 @@ class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscript
 
 @admin.register(ProductVariant)
 class ProductVariantAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptable at runtime
-    list_display = ("sku", "product", "size", "color", "stock_quantity", "price_override")
-    list_filter = ("size", "color", "product__is_published")
+    list_display = ("sku", "product", "size", "shade", "stock_quantity", "price_override")
+    list_filter = ("size", "shade", "product__is_published")
     ordering = ("product__name", "size__sort_order")
     search_fields = ("sku", "product__name")
-    # Readonly here too, not only in the inline: the change form writes the same
-    # column just as unlocked.
     readonly_fields = ("stock_quantity",)
     actions = ("adjust_stock",)
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[ProductVariant]:
         variants: QuerySet[ProductVariant] = super().get_queryset(request)
-        return variants.select_related("product", "size", "color")
+        return variants.select_related("product", "size", "shade")
 
     @admin.action(description="Adjust stock for the selected variants")
     def adjust_stock(
         self, request: HttpRequest, queryset: QuerySet[ProductVariant]
     ) -> HttpResponse | None:
-        """Sets an absolute count through the service, which takes the row lock."""
         form = AdjustStockForm(request.POST if "apply" in request.POST else None)
 
         if not form.is_valid():

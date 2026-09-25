@@ -3,7 +3,7 @@ Hello {{ order.full_name }},
 
 Order {{ order.order_number }} left us today and is with the courier.
 
-{% for item in items %}- {{ item.quantity }} x {{ item.product_name }} ({{ item.variant_size }}, {{ item.variant_color }})
+{% for item in items %}- {{ item.quantity }} x {{ item.product_name }} ({{ item.variant_size }}{% if item.variant_shade %}, {{ item.variant_shade }}{% endif %})
 {% endfor %}
 Delivering to:
 {{ order.full_name }}

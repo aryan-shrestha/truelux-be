@@ -5,11 +5,28 @@ from django.db import models
 from apps.core.models import TimeStampedModel, UUIDModel
 
 
+class Brand(UUIDModel, TimeStampedModel):
+    name = models.CharField(max_length=150, unique=True)
+    slug = models.SlugField(max_length=150, unique=True)
+    description = models.TextField(blank=True)
+    logo = models.ImageField(upload_to="brands/", blank=True)
+    # Deactivating hides the brand and every product of it from the public API;
+    # PROTECT on Product.brand means deletion is not an option once it has products.
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "brand"
+        ordering = ["sort_order", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Size(UUIDModel, TimeStampedModel):
     name = models.CharField(max_length=50, unique=True)
     slug = models.SlugField(max_length=50, unique=True)
-    # Sizes are ordered by the body, not by the alphabet: S must precede M, which
-    # must precede L. Nothing derivable from the name gives that order.
+    # Volumes are ordered by amount, not alphabetically: "15 ml" before "100 ml".
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -20,14 +37,21 @@ class Size(UUIDModel, TimeStampedModel):
         return self.name
 
 
-class Color(UUIDModel, TimeStampedModel):
+class Shade(UUIDModel, TimeStampedModel):
     name = models.CharField(max_length=50, unique=True)
     slug = models.SlugField(max_length=50, unique=True)
+    hex_code = models.CharField(max_length=7)
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        db_table = "color"
+        db_table = "shade"
         ordering = ["sort_order", "name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(hex_code__regex=r"^#[0-9A-Fa-f]{6}$"),
+                name="shade_hex_code_format",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -58,6 +82,7 @@ class Product(UUIDModel, TimeStampedModel):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True)
     description = models.TextField(blank=True)
+    brand = models.ForeignKey(Brand, on_delete=models.PROTECT, related_name="products")
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="products")
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
     is_published = models.BooleanField(default=False)
@@ -77,7 +102,9 @@ class Product(UUIDModel, TimeStampedModel):
 class ProductVariant(UUIDModel, TimeStampedModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variants")
     size = models.ForeignKey(Size, on_delete=models.PROTECT, related_name="variants")
-    color = models.ForeignKey(Color, on_delete=models.PROTECT, related_name="variants")
+    shade = models.ForeignKey(
+        Shade, on_delete=models.PROTECT, null=True, blank=True, related_name="variants"
+    )
     sku = models.CharField(max_length=64, unique=True)
     # IntegerField, not PositiveIntegerField: the latter emits its own unnamed
     # CHECK (>= 0), which would duplicate the named constraint below that ADR 0004
@@ -88,12 +115,14 @@ class ProductVariant(UUIDModel, TimeStampedModel):
     class Meta:
         db_table = "product_variant"
         # No default ordering: sorting by size__sort_order would join two tables on
-        # every variant read, including every prefetch. The browsing feature orders
-        # explicitly where it needs to.
+        # every variant read, including every prefetch.
         constraints = [
+            # NULLS NOT DISTINCT (PostgreSQL 15+) so a nullable shade cannot let a
+            # product hold two shadeless variants of one size (ADR 0010).
             models.UniqueConstraint(
-                fields=["product", "size", "color"],
-                name="product_variant_unique_product_size_color",
+                fields=["product", "size", "shade"],
+                name="product_variant_unique_product_size_shade",
+                nulls_distinct=False,
             ),
             models.CheckConstraint(
                 condition=models.Q(stock_quantity__gte=0),
@@ -110,9 +139,6 @@ class ProductVariant(UUIDModel, TimeStampedModel):
 
     @property
     def price(self) -> Decimal:
-        # Every price read goes through here. `price_override` is null for almost
-        # every row, so reading the column directly yields None and silently
-        # produces a zero or a crash at the call site.
         if self.price_override is not None:
             return self.price_override
         return self.product.base_price
@@ -129,10 +155,7 @@ class ProductImage(UUIDModel, TimeStampedModel):
         db_table = "product_image"
         ordering = ["sort_order", "created_at"]
         constraints = [
-            # Partial, so a product may hold many non-primary images but only ever
-            # one primary. Promoting a new primary must clear the old one in the
-            # same transaction or this raises IntegrityError, which the handler
-            # turns into a 409.
+            # Promoting a new primary must clear the old one in the same transaction.
             models.UniqueConstraint(
                 fields=["product", "is_primary"],
                 condition=models.Q(is_primary=True),

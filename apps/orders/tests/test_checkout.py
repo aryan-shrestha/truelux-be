@@ -11,9 +11,9 @@ from rest_framework.throttling import SimpleRateThrottle
 
 from apps.catalog.models import ProductVariant
 from apps.catalog.tests.factories import (
-    ColorFactory,
     ProductFactory,
     ProductVariantFactory,
+    ShadeFactory,
     SizeFactory,
 )
 from apps.orders.constants import OrderStatus, PaymentMethod
@@ -86,23 +86,42 @@ def test_checkout_ignores_client_supplied_price(api_client):
 
 
 def test_checkout_snapshots_name_size_and_price_onto_items(api_client):
-    size = SizeFactory.create(name="M", slug="m")
-    color = ColorFactory.create(name="Black", slug="black")
+    size = SizeFactory.create(name="30 ml", slug="30-ml")
+    shade = ShadeFactory.create(name="Warm Beige", slug="warm-beige")
     product = ProductFactory.create(
-        is_published=True, name="Linen Shirt", base_price=Decimal("4500.00")
+        is_published=True, name="Silk Foundation", base_price=Decimal("4500.00")
     )
     variant = ProductVariantFactory.create(
-        product=product, size=size, color=color, sku="LIN-SHT-M-BLK", stock_quantity=5
+        product=product, size=size, shade=shade, sku="LUM-SF-30-WB", stock_quantity=5
     )
 
     _checkout(api_client, items=[{"variant_id": str(variant.pk), "quantity": 1}])
 
     item = OrderItem.objects.get()
-    assert item.product_name == "Linen Shirt"
-    assert item.variant_size == "M"
-    assert item.variant_color == "Black"
-    assert item.sku == "LIN-SHT-M-BLK"
+    assert item.product_name == "Silk Foundation"
+    assert item.variant_size == "30 ml"
+    assert item.variant_shade == "Warm Beige"
+    assert item.sku == "LUM-SF-30-WB"
     assert item.unit_price == Decimal("4500.00")
+
+
+def test_checkout_snapshots_an_empty_shade_for_a_shadeless_variant(api_client):
+    variant = _variant()
+
+    _checkout(api_client, items=[{"variant_id": str(variant.pk), "quantity": 1}])
+
+    assert OrderItem.objects.get().variant_shade == ""
+
+
+def test_a_variant_of_an_inactive_brand_returns_422(api_client):
+    variant = _variant()
+    variant.product.brand.is_active = False
+    variant.product.brand.save()
+
+    response = _checkout(api_client, items=[{"variant_id": str(variant.pk), "quantity": 1}])
+
+    assert response.status_code == 422
+    assert response.data["error"]["code"] == "variant_unavailable"
 
 
 def test_checkout_uses_the_variant_price_override_when_set(api_client):
@@ -343,9 +362,9 @@ def test_each_extra_cart_line_costs_exactly_one_query(api_client):
 
     # The only per-line cost is the stock UPDATE, which is inherent: N rows change,
     # so N rows are written. Everything else -- the locked fetch with its product,
-    # size and colour joins, the order insert, the bulk_create of the lines -- is
+    # size and shade joins, the order insert, the bulk_create of the lines -- is
     # one query whatever the cart holds. If this grows to three per line, the
-    # select_related on size and colour has been dropped and the snapshot is doing
+    # select_related on size and shade has been dropped and the snapshot is doing
     # two extra queries per variant while holding every lock in the cart.
     assert three_lines - one_line == 2
 

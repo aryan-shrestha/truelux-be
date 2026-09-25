@@ -4,7 +4,7 @@ Hello {{ order.full_name }},
 We have your order {{ order.order_number }}. Nothing has shipped yet; we will
 email you again when it does.
 
-{% for item in items %}- {{ item.quantity }} x {{ item.product_name }} ({{ item.variant_size }}, {{ item.variant_color }}) - Rs. {{ item.unit_price }} each
+{% for item in items %}- {{ item.quantity }} x {{ item.product_name }} ({{ item.variant_size }}{% if item.variant_shade %}, {{ item.variant_shade }}{% endif %}) - Rs. {{ item.unit_price }} each
 {% endfor %}
 Subtotal      Rs. {{ order.subtotal }}
 Shipping      Rs. {{ order.shipping_fee }}

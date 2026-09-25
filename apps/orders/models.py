@@ -68,11 +68,10 @@ class OrderItem(UUIDModel, TimeStampedModel):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
 
     # Snapshots. The foreign key answers which row; these answer what the customer
-    # saw. Renaming a product or a colour must not alter a completed order, and
-    # ADR 0007 made size and colour rows that can be renamed or deleted.
+    # saw, and must survive a product, size or shade being renamed.
     product_name = models.CharField(max_length=200)
     variant_size = models.CharField(max_length=50)
-    variant_color = models.CharField(max_length=50)
+    variant_shade = models.CharField(max_length=50, blank=True)
     sku = models.CharField(max_length=64)
 
     class Meta:

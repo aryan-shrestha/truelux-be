@@ -8,16 +8,23 @@ from rest_framework.serializers import BaseSerializer
 from rest_framework.throttling import ScopedRateThrottle
 
 from apps.catalog.filters import DeterministicOrderingFilter, ProductFilter
-from apps.catalog.models import Category, Product
+from apps.catalog.models import Brand, Category, Product, Shade, Size
 from apps.catalog.selectors import (
+    get_active_brand_by_slug,
     get_published_product_by_slug,
+    list_active_brands,
     list_category_tree,
     list_published_products,
+    list_shades_in_use,
+    list_sizes_in_use,
 )
 from apps.catalog.serializers import (
+    BrandSerializer,
     CategoryTreeSerializer,
     ProductDetailSerializer,
     ProductListSerializer,
+    ShadeSerializer,
+    SizeSerializer,
 )
 
 CATALOG_THROTTLE_SCOPE = "catalog"
@@ -27,8 +34,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet[Product]):
     permission_classes = (AllowAny,)
     throttle_classes = (ScopedRateThrottle,)
     throttle_scope = CATALOG_THROTTLE_SCOPE
-    # The storefront needs readable, SEO-stable URLs, which is the one place this
-    # repository looks up a detail route by something other than a UUID.
+    # Readable, SEO-stable storefront URLs: the one detail route not looked up by UUID.
     lookup_field = "slug"
     filter_backends = (DjangoFilterBackend, DeterministicOrderingFilter, SearchFilter)
     filterset_class = ProductFilter
@@ -39,9 +45,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet[Product]):
         return list_published_products()
 
     def get_object(self) -> Product:
-        # Not the default implementation: detail needs the variant prefetch that
-        # the list queryset deliberately omits. A missing or unpublished slug
-        # raises DoesNotExist, which the handler turns into the documented 404.
+        # Detail needs the variant prefetch the list queryset deliberately omits.
         product = get_published_product_by_slug(slug=self.kwargs[self.lookup_field])
         self.check_object_permissions(self.request, product)
         return product
@@ -52,14 +56,53 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet[Product]):
         return ProductListSerializer
 
 
+class BrandViewSet(viewsets.ReadOnlyModelViewSet[Brand]):
+    permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = CATALOG_THROTTLE_SCOPE
+    serializer_class = BrandSerializer
+    lookup_field = "slug"
+    pagination_class = None
+
+    def get_queryset(self) -> QuerySet[Brand]:
+        return list_active_brands()
+
+    def get_object(self) -> Brand:
+        brand = get_active_brand_by_slug(slug=self.kwargs[self.lookup_field])
+        self.check_object_permissions(self.request, brand)
+        return brand
+
+
+# The taxonomy lists are unpaginated: storefront navigation and filters are useless
+# truncated.
 class CategoryListView(ListAPIView[Category]):
     permission_classes = (AllowAny,)
     throttle_classes = (ScopedRateThrottle,)
     throttle_scope = CATALOG_THROTTLE_SCOPE
     serializer_class = CategoryTreeSerializer
-    # Navigation is useless truncated, and a merchant adding a 26th root category
-    # would otherwise watch it disappear from the storefront menu.
     pagination_class = None
 
     def get_queryset(self) -> QuerySet[Category]:
         return list_category_tree()
+
+
+class ShadeListView(ListAPIView[Shade]):
+    permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = CATALOG_THROTTLE_SCOPE
+    serializer_class = ShadeSerializer
+    pagination_class = None
+
+    def get_queryset(self) -> QuerySet[Shade]:
+        return list_shades_in_use()
+
+
+class SizeListView(ListAPIView[Size]):
+    permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = CATALOG_THROTTLE_SCOPE
+    serializer_class = SizeSerializer
+    pagination_class = None
+
+    def get_queryset(self) -> QuerySet[Size]:
+        return list_sizes_in_use()

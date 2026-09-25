@@ -3,7 +3,7 @@
     <tr>
       <td style="padding:8px 0;border-bottom:1px solid #eee;">
         {{ item.quantity }} &times; {{ item.product_name }}<br>
-        <span style="font-size:13px;color:#666;">{{ item.variant_size }}, {{ item.variant_color }}</span>
+        <span style="font-size:13px;color:#666;">{{ item.variant_size }}{% if item.variant_shade %}, {{ item.variant_shade }}{% endif %}</span>
       </td>
       {% if show_prices %}
         <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">

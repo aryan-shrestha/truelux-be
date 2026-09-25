@@ -1,6 +1,6 @@
 # Brands
 
-Status: Planned
+Status: Implemented
 
 Last updated: 2026-09-25
 
@@ -62,6 +62,69 @@ model rather than a product attribute. The filter follows the existing
 
 ---
 
+## Implemented
+
+- `apps/catalog/models.py` — `Brand` exactly as planned; `Product.brand` is a required
+  `PROTECT` foreign key with `related_name="products"`.
+- `apps/catalog/selectors.py` — `VISIBLE_PRODUCT = Q(is_published=True,
+  brand__is_active=True)` scopes `list_published_products` and
+  `get_published_product_by_slug`, both of which `select_related("brand",
+  "category")`. `list_active_brands` / `get_active_brand_by_slug` annotate
+  `product_count` with `Count("products", filter=Q(products__is_published=True))`.
+- `apps/catalog/filters.py` — `ProductFilter.brand`, a `ModelMultipleChoiceFilter`
+  on `brand__slug` (subclassed as `SlugMultipleChoiceFilter` only to give
+  drf-spectacular an array-of-strings schema).
+- `apps/catalog/serializers.py` — `BrandSummarySerializer` (`name`, `slug`) nested in
+  every product item; `BrandSerializer` for the brand endpoints.
+- `apps/catalog/views.py`, `urls.py` — `BrandViewSet` (read-only, slug lookup,
+  `AllowAny`, `catalog` throttle scope, unpaginated), registered as `brands`.
+- `apps/catalog/services.py` — `decrement_variant_stock` treats a variant whose brand
+  is inactive exactly like an unpublished one: `422 variant_unavailable` at checkout.
+- `apps/catalog/admin.py` — `BrandAdmin`; `ProductAdmin` lists and filters by brand.
+- `apps/catalog/management/commands/seed_demo.py` — eight seeded brands, each with a
+  generated PNG logo.
+- Writes through the admin API: see `admin-api.md`.
+
+---
+
+## Remaining
+
+None.
+
+---
+
+## Decisions
+
+### Decision: an inactive brand's variants cannot be bought
+
+**Decision**
+
+`decrement_variant_stock` rejects variants of an inactive brand with
+`variant_unavailable`, alongside unpublished products.
+
+**Reason**
+
+The brand hides its products from every public endpoint; a stale cart must not be
+able to buy something the storefront can no longer show.
+
+**Consequence**
+
+Deactivating a brand immediately stops its sales. Pending orders are unaffected.
+
+---
+
+## Gotchas
+
+- `?brand=` validates slugs against every brand (active or not). An **unknown** slug
+  is `400 validation_error`; an inactive brand's slug is accepted and matches
+  nothing. `?category=`, by contrast, returns an empty page for an unknown slug.
+- `product_count` counts published products only; it does not look at stock.
+- `logo_url` is `null` when no logo is uploaded (`Brand.logo` is `blank=True`).
+- Deleting a brand with products raises `ProtectedError`, a subclass of
+  `IntegrityError`, which the exception handler already maps to `409 conflict`.
+
+---
+
 ## API
 
 ### `GET /api/v1/brands/`
@@ -117,15 +180,18 @@ Reads are public (`AllowAny`). Writes go through `admin-api` only (`IsAdminUser`
 
 ## Tests
 
-To be written:
+`apps/catalog/tests/test_brands.py`:
 
-- The list hides inactive brands; `product_count` counts only published products.
-- Detail returns 404 for unknown and inactive slugs with the same body.
-- Product list: `?brand=a&brand=b` returns the union; an inactive brand's products
-  are absent from the list, the detail and the facets.
-- Deleting a brand that has products raises `ProtectedError` → 409 through the
-  handler.
-- Query count of the product list does not grow with the number of brands.
+- The list hides inactive brands and counts only published products; ordering is
+  `sort_order, name`; `logo_url` is the storage URL or `null`.
+- Unknown and inactive slugs return byte-identical 404 bodies.
+- Product list and detail carry `brand`; `?brand=a&brand=b` is the union.
+- An inactive brand's products are absent from the list, the detail and the
+  `/shades/` and `/sizes/` facets.
+- Deleting a brand with products is a `ProtectedError` that the handler turns into 409.
+- The product list stays at three queries with 2 or 8 brands.
+
+`apps/orders/tests/test_checkout.py::test_a_variant_of_an_inactive_brand_returns_422`.
 
 ---
 
@@ -139,5 +205,7 @@ apps/catalog/
 ├── serializers.py
 ├── views.py
 ├── urls.py
+├── services.py
+├── admin.py
 └── tests/test_brands.py
 ```
