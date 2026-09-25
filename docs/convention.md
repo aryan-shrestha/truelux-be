@@ -1,6 +1,6 @@
 # Code Conventions
 
-Last updated: 2026-09-20
+Last updated: 2026-09-25
 
 This document records conventions that apply across the repository.
 
@@ -34,6 +34,9 @@ it usually belongs next to its only caller.
 
 Split a module when it grows past roughly 400 lines, into `services/` with
 `__init__.py` re-exporting the public names, so imports elsewhere do not change.
+`apps/catalog/services/` (`stock.py`, `products.py`, `taxonomy.py`) is the example.
+Patch a service where it is looked up: `apps.catalog.services.products.set_variant_stock`,
+not the package re-export.
 
 ### Classes
 
@@ -87,7 +90,7 @@ and `do_` say nothing — name the actual operation.
 `snake_case`. Collections are plural, single objects singular. Name the content, not
 the container: `orders`, not `order_list`, `data`, `result`, or `info`.
 
-Booleans read as assertions: `is_paid`, `has_items`, `should_notify`. Avoid negated
+Booleans read as assertions: `is_published`, `has_items`, `should_notify`. Avoid negated
 names — `is_hidden` beats `is_not_visible`, which produces `if not is_not_visible`.
 
 Single letters only as comprehension or loop variables over an obvious collection.
@@ -383,6 +386,11 @@ Conventions:
 - Permissions answer _may this caller do this_. They never answer _is this data
   valid_ or _is this state allowed_ — those are the service's job.
 - Django model permissions and groups are used only by the admin, not by the API.
+- Staff API views inherit `apps.backoffice.views.StaffAPIView`, which fixes JWT
+  authentication, `IsAuthenticated` + `IsAdminUser` and the `admin` throttle scope
+  in one place. `apps/backoffice/tests/test_permissions.py` fails if a route in
+  `apps/backoffice/urls.py` does not inherit it, so this is the one deliberate
+  exception to declaring `permission_classes` on every view.
 
 ---
 

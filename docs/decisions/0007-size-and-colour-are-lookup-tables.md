@@ -1,6 +1,6 @@
 # ADR 0007: Size and colour are lookup tables
 
-Status: Accepted
+Status: Accepted; the colour axis is superseded by [ADR 0010](0010-shade-replaces-colour-and-is-optional.md)
 
 Date: 2026-09-20
 
