@@ -3,8 +3,6 @@ from decimal import Decimal
 from unittest import mock
 
 import pytest
-import requests
-from django.core.cache import caches
 from django.db import connection, connections
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -23,15 +21,8 @@ from apps.orders.exceptions import EmptyCart
 from apps.orders.models import Order, OrderItem
 from apps.orders.services import place_order
 from apps.payments.models import Payment, PaymentStatus
-from apps.payments.tests.khalti_stubs import INITIATE_BODY, FakeResponse
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture(autouse=True)
-def _clear_throttle_counters(settings):
-    for alias in (settings.THROTTLE_FALLBACK_CACHE_ALIAS, "default"):
-        caches[alias].clear()
 
 
 def _payload(*, items, **overrides):
@@ -256,59 +247,6 @@ def test_cod_checkout_records_a_pending_payment(api_client):
     assert payment.order.order_number == response.data["order_number"]
 
 
-def test_khalti_checkout_returns_a_payment_url(api_client, khalti_post):
-    variant = _variant()
-
-    response = _checkout(
-        api_client,
-        items=[{"variant_id": str(variant.pk), "quantity": 1}],
-        payment_method=PaymentMethod.KHALTI.value,
-    )
-
-    assert response.status_code == 201
-    assert response.data["payment_url"] == "https://test-pay.khalti.invalid/?pidx=pidx-1"
-    payment = Payment.objects.get()
-    assert payment.method == PaymentMethod.KHALTI
-    assert payment.status == PaymentStatus.PENDING
-    assert payment.pidx == "pidx-1"
-
-
-def _record_atomic_depth(depth_at_call, body):
-    """Returns a `requests.post` stand-in that notes the transaction depth it saw."""
-
-    def _post(*args, **kwargs):
-        depth_at_call.append(len(connection.atomic_blocks))
-        return FakeResponse(body)
-
-    return _post
-
-
-def test_gateway_is_not_called_inside_transaction(api_client, khalti_post):
-    """ADR 0004 and ADR 0005 both require this, and only a comment held it.
-
-    The initiate call is an external request of unbounded duration. Inside
-    `place_order`'s transaction it would hold the variant row locks and a Supabase
-    pooler slot for its whole duration, blocking every other buyer of the same
-    variants.
-
-    Depth rather than `in_atomic_block`: `django_db` wraps each test in its own
-    atomic block, so `in_atomic_block` is true throughout and would prove nothing.
-    """
-    variant = _variant()
-    depth_outside_any_service = len(connection.atomic_blocks)
-    depth_at_call: list[int] = []
-    khalti_post.side_effect = _record_atomic_depth(depth_at_call, INITIATE_BODY)
-
-    response = _checkout(
-        api_client,
-        items=[{"variant_id": str(variant.pk), "quantity": 1}],
-        payment_method=PaymentMethod.KHALTI.value,
-    )
-
-    assert response.status_code == 201
-    assert depth_at_call == [depth_outside_any_service]
-
-
 def test_a_failed_cod_record_leaves_an_order_with_no_payment(api_client):
     """The gap `payments.md` documents and nothing asserted.
 
@@ -335,44 +273,13 @@ def test_a_failed_cod_record_leaves_an_order_with_no_payment(api_client):
     assert variant.stock_quantity == 4
 
 
-def test_cod_checkout_omits_the_payment_url(api_client):
-    variant = _variant()
-
-    response = _checkout(api_client, items=[{"variant_id": str(variant.pk), "quantity": 1}])
-
-    # Absent, not null: there is nothing to redirect a cash customer to.
-    assert "payment_url" not in response.data
-
-
-def test_a_failed_initiate_returns_422_naming_the_order(api_client, khalti_post):
-    khalti_post.side_effect = requests.ConnectionError("no route to host")
-    variant = _variant()
-
-    response = _checkout(api_client, items=[{"variant_id": str(variant.pk), "quantity": 1}])
-
-    assert response.status_code == 201  # cash on delivery is unaffected
-    khalti = _checkout(
-        api_client,
-        items=[{"variant_id": str(variant.pk), "quantity": 1}],
-        payment_method=PaymentMethod.KHALTI.value,
-    )
-
-    assert khalti.status_code == 422
-    assert khalti.data["error"]["code"] == "payment_gateway_unavailable"
-    # The order exists and holds its stock, so the customer must be told which one.
-    order = Order.objects.get(order_number=khalti.data["error"]["details"]["order_number"])
-    assert order.status == OrderStatus.PENDING
-    variant.refresh_from_db()
-    assert variant.stock_quantity == 3
-
-
 def test_an_unknown_payment_method_returns_400(api_client):
     variant = _variant()
 
     response = _checkout(
         api_client,
         items=[{"variant_id": str(variant.pk), "quantity": 1}],
-        payment_method="bank_transfer",
+        payment_method="khalti",
     )
 
     assert response.status_code == 400

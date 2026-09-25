@@ -15,4 +15,6 @@ Delivering to:
 
 The full order is here:
 {{ order_url }}
+
+TrueLux
 {% endautoescape %}

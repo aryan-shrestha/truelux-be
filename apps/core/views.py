@@ -49,8 +49,8 @@ class ReadinessView(APIView):
         operation_id="health_ready",
         summary="Readiness probe",
         description=(
-            "Checks the database and cache. Returns 503 naming the failed check, "
-            "without exception detail, since the endpoint is unauthenticated."
+            "Checks the database and the database cache table. Returns 503 naming the "
+            "failed check, without exception detail, since the endpoint is unauthenticated."
         ),
         responses={200: dict, 503: dict},
         tags=["health"],
@@ -69,7 +69,6 @@ class ReadinessView(APIView):
             with connections["default"].cursor() as cursor:
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
-        # A probe reports failure; it must never raise.
         except Exception:
             logger.exception("health.database_unreachable")
             return "error"
@@ -81,7 +80,8 @@ class ReadinessView(APIView):
             if cache.get(READINESS_CACHE_KEY) != "1":
                 logger.error("health.cache_roundtrip_failed")
                 return "error"
-        # A probe reports failure; it must never raise.
+        # A probe reports failure and must never raise. The cache is a table that only
+        # exists if the build ran `createcachetable` (ADR 0014), so this catches that.
         except Exception:
             logger.exception("health.cache_unreachable")
             return "error"

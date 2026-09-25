@@ -1,28 +1,18 @@
-# Local dependencies only. Deployment is Render; this file exists so a developer
-# can get a matching Postgres and Redis without installing either.
+# Local Postgres only; deployment is Render. Published on 5433 so it does not
+# collide with a Postgres already installed on the host.
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: clothing_store
+      POSTGRES_DB: truelux
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5

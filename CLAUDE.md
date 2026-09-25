@@ -9,13 +9,15 @@ architecture knowledge, feature state, and decisions belong in `docs/`.
 
 ## Project
 
-Django REST Framework API service.
+TrueLux: the Django REST Framework API behind a multi-brand cosmetics store. It
+serves the public storefront (guest checkout, cash on delivery only) and the staff
+admin app (`/api/v1/admin/`, JWT).
 
 - Python 3.12+
 - Django 5.x
 - Django REST Framework
-- PostgreSQL with psycopg 3
-- Redis is used for caching and throttling only.
+- PostgreSQL 15+ with psycopg 3 (`NULLS NOT DISTINCT` is used; Supabase in production)
+- No Redis: the cache, and so the throttle counters, is Django's `DatabaseCache` (ADR 0014).
 - There is **no Celery or task queue**. Do not add, stub, or introduce one.
 - `uv` manages dependencies, the virtual environment, and command execution.
 - Do not use pip, Poetry, or `requirements.txt`.

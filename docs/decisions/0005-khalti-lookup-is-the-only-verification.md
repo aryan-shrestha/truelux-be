@@ -1,6 +1,6 @@
 # ADR 0005: Khalti lookup is the only payment verification
 
-Status: Accepted
+Status: Superseded by [ADR 0011](0011-cash-on-delivery-only.md)
 
 Date: 2026-09-20
 

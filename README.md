@@ -1,6 +1,6 @@
-# Clothing Store — Backend
+# TrueLux — Backend
 
-Django 5 + Django REST Framework API for the clothing store.
+Django 5 + Django REST Framework API for TrueLux, a multi-brand cosmetics store.
 
 Read [`CLAUDE.md`](CLAUDE.md) before your first change, then
 [`docs/architecture.md`](docs/architecture.md) and

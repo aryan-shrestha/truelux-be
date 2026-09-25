@@ -56,37 +56,13 @@ def test_every_seeded_order_has_a_payment(seeded):
 
 
 @pytest.mark.django_db
-def test_seed_covers_both_payment_methods_paid_and_unpaid(seeded):
-    pairs = {
-        (payment.method, payment.status)
-        for payment in Payment.objects.filter(order__in=_seeded_orders())
-    }
+def test_cash_is_collected_only_on_delivered_orders(seeded):
+    payments = Payment.objects.filter(order__in=_seeded_orders())
 
-    assert (PaymentMethod.COD, PaymentStatus.COMPLETED) in pairs
-    assert (PaymentMethod.COD, PaymentStatus.PENDING) in pairs
-    assert (PaymentMethod.KHALTI, PaymentStatus.COMPLETED) in pairs
-    assert (PaymentMethod.KHALTI, PaymentStatus.PENDING) in pairs
-
-
-@pytest.mark.django_db
-def test_seed_leaves_one_khalti_order_holding_stock(seeded):
-    # ADR 0004's accepted failure mode, and the thing the admin's "Verify selected
-    # payments with Khalti" action and the handover's daily check are both for.
-    stranded = _seeded_orders().filter(
-        status=OrderStatus.PENDING,
-        payment_method=PaymentMethod.KHALTI,
-        payments__status=PaymentStatus.PENDING,
-    )
-
-    assert stranded.exists()
-
-
-@pytest.mark.django_db
-def test_seed_never_calls_khalti(seeded, khalti_post):
-    # The Khalti payment rows are written directly for this reason: a seed command
-    # that reached the network would need credentials and would take real money's
-    # code path.
-    assert khalti_post.call_count == 0
+    assert {payment.method for payment in payments} == {PaymentMethod.COD}
+    completed = payments.filter(status=PaymentStatus.COMPLETED)
+    assert completed.exists()
+    assert not completed.exclude(order__status=OrderStatus.DELIVERED).exists()
 
 
 @pytest.mark.django_db

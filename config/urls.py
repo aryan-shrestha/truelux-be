@@ -1,11 +1,3 @@
-"""Root URL configuration.
-
-Versioned API routes live under ``/api/v1/`` in the ``v1`` namespace, which is what
-``NamespaceVersioning`` reads to resolve ``request.version``. Route names are
-therefore namespaced: ``reverse("v1:product-list")``. ``users`` registers nothing
-here, being admin-only by design.
-"""
-
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -16,14 +8,16 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+# The "v1" namespace is what NamespaceVersioning reads to resolve request.version,
+# so route names are namespaced: reverse("v1:product-list").
 api_v1_patterns: list[URLPattern | URLResolver] = [
     path("", include("apps.catalog.urls")),
     path("", include("apps.orders.urls")),
-    path("", include("apps.payments.urls")),
 ]
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Not /admin/, so the Django admin is never confused with the TrueLux admin app.
+    path("django-admin/", admin.site.urls),
     path("health/", include("apps.core.urls")),
     path("api/v1/", include((api_v1_patterns, "v1"), namespace="v1")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
@@ -35,6 +29,5 @@ urlpatterns = [
     path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 ]
 
-# Returns an empty list unless DEBUG. In production uploads live on Cloudinary and
-# are served from its CDN, so nothing here ever serves an uploaded file.
+# An empty list unless DEBUG; in production uploads are served by Cloudinary's CDN.
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

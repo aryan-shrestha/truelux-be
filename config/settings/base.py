@@ -105,20 +105,12 @@ for _alias in DATABASES:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "users.User"
 
-REDIS_URL = read.text("REDIS_URL")
-
-THROTTLE_FALLBACK_CACHE_ALIAS = "throttle_fallback"
-
+# ADR 0014: throttle counters live in Postgres, in a table `createcachetable` builds.
+# Local memory would count per process and multiply every limit by the worker count.
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": REDIS_URL,
-    },
-    # Throttle counters fall back here when Redis is unreachable, so rate limiting
-    # degrades to per-process counting instead of disappearing. Never read directly.
-    THROTTLE_FALLBACK_CACHE_ALIAS: {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "throttle-fallback",
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
     },
 }
 
@@ -170,8 +162,8 @@ REST_FRAMEWORK = {
     "DEFAULT_VERSION": "v1",
     "ALLOWED_VERSIONS": ("v1",),
     "DEFAULT_THROTTLE_CLASSES": (
-        "apps.core.throttling.ResilientAnonRateThrottle",
-        "apps.core.throttling.ResilientUserRateThrottle",
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
         "anon": read.throttle_rate("DJANGO_THROTTLE_ANON"),
@@ -189,10 +181,6 @@ REST_FRAMEWORK = {
         # Checkout writes and holds row locks for the length of its transaction,
         # which makes it more expensive to abuse than any read endpoint here.
         "checkout": read.throttle_rate("DJANGO_THROTTLE_CHECKOUT"),
-        # The payment return is the only unauthenticated endpoint that can change
-        # money state. Customers refresh and bookmark it, so the rate has to allow
-        # honest repetition while bounding a scripted one.
-        "payment_return": read.throttle_rate("DJANGO_THROTTLE_PAYMENT_RETURN"),
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
@@ -211,8 +199,8 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Clothing Store API",
-    "DESCRIPTION": "REST API for the clothing store backend.",
+    "TITLE": "TrueLux API",
+    "DESCRIPTION": "REST API for the TrueLux cosmetics store.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SCHEMA_PATH_PREFIX": "/api/v[0-9]",
@@ -232,31 +220,15 @@ EMAIL_USE_TLS = read.flag("EMAIL_USE_TLS")
 # otherwise hold a gunicorn worker open indefinitely.
 EMAIL_TIMEOUT = read.integer("EMAIL_TIMEOUT")
 
-# The storefront root, and the contract between this repository and the Next.js
-# one. Three readers: Khalti receives it as `website_url`, the payment return
-# redirects the customer to {STOREFRONT_URL}/orders/<access_token>, and the
-# confirmation email links to the same page. https is required away from
-# localhost, because that token is a bearer credential under ADR 0003 and http
-# would mail it in clear text.
+# The confirmation email links to {STOREFRONT_URL}/orders/<access_token>. https is
+# required away from localhost, because that token is a bearer credential under
+# ADR 0003 and http would mail it in clear text.
 STOREFRONT_URL = read.url("STOREFRONT_URL", require_https=True)
 
-# The brand ships by courier at a flat negotiated rate, in two bands. A district
-# that matches neither is charged the outside rate: see checkout.md for why that
-# direction was chosen. `shipping_fee` is stored on the order, so changing these
-# never alters a historical total.
+# A district matching neither band pays the outside rate; see checkout.md.
 SHIPPING_FEE_INSIDE_VALLEY = read.decimal("SHIPPING_FEE_INSIDE_VALLEY")
 SHIPPING_FEE_OUTSIDE_VALLEY = read.decimal("SHIPPING_FEE_OUTSIDE_VALLEY")
 KATHMANDU_VALLEY_DISTRICTS = ("kathmandu", "lalitpur", "bhaktapur")
-
-# Khalti's ePayment API (KPG-2). Sandbox and live use different hosts and different
-# keys, and a live key against the sandbox host fails in a way that looks like a
-# credential problem -- which is why the host is configuration rather than a default.
-KHALTI_BASE_URL = read.url("KHALTI_BASE_URL")
-KHALTI_SECRET_KEY = read.text("KHALTI_SECRET_KEY")
-KHALTI_RETURN_URL = read.url("KHALTI_RETURN_URL")
-# ADR 0005 calls Khalti inside the request, so an unresponsive gateway would
-# otherwise hold a gunicorn worker open indefinitely. Same reasoning as EMAIL_TIMEOUT.
-KHALTI_TIMEOUT = read.integer("KHALTI_TIMEOUT")
 
 LOG_LEVEL = read.text("DJANGO_LOG_LEVEL")
 

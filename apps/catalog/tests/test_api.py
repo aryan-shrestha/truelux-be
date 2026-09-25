@@ -2,7 +2,6 @@ from decimal import Decimal
 from unittest import mock
 
 import pytest
-from django.core.cache import caches
 from django.urls import reverse
 from rest_framework.throttling import SimpleRateThrottle
 
@@ -16,12 +15,6 @@ from apps.catalog.tests.factories import (
 )
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture(autouse=True)
-def _clear_throttle_counters(settings):
-    for alias in (settings.THROTTLE_FALLBACK_CACHE_ALIAS, "default"):
-        caches[alias].clear()
 
 
 def _rates(**overrides):

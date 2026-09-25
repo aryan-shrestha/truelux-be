@@ -1,11 +1,12 @@
-{# Deliberately plain: inline styles only, one table, no external assets. Email #}
-{# clients strip stylesheets, and nobody has specified a brand treatment. #}
+{# Inline styles only, one table, no external assets: email clients strip stylesheets. #}
 <!DOCTYPE html>
 <html lang="en">
   <body style="margin:0;padding:24px;background:#f6f6f6;font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;padding:32px;">
       <tr>
         <td>
+          <p style="margin:0 0 24px;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#8a6d5a;">TrueLux</p>
+
           {% block content %}{% endblock %}
 
           <p style="margin:32px 0 0;font-size:13px;color:#666;">

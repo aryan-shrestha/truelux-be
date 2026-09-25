@@ -5,7 +5,7 @@ from pathlib import Path
 # Set before base.py is imported, because ADR 0008 gives every variable a hard
 # requirement and no default: importing base.py with an unconfigured environment is
 # now an ImproperlyConfigured, and the suite must run on a machine that has never
-# held a Cloudinary account, a Khalti merchant account or an SMTP server.
+# held a Cloudinary account or an SMTP server.
 #
 # Assigned, not `setdefault`. These values define the suite, and a developer whose
 # shell exports the project's variables -- from direnv, or a sourced .env -- would
@@ -29,10 +29,8 @@ _TEST_ENVIRONMENT = {
     "DJANGO_THROTTLE_CATALOG": "1000/minute",
     "DJANGO_THROTTLE_ORDER_LOOKUP": "1000/minute",
     "DJANGO_THROTTLE_CHECKOUT": "1000/minute",
-    "DJANGO_THROTTLE_PAYMENT_RETURN": "1000/minute",
     "JWT_ACCESS_TOKEN_LIFETIME_MINUTES": "15",
     "JWT_REFRESH_TOKEN_LIFETIME_DAYS": "7",
-    "REDIS_URL": "redis://localhost:6379/0",
     "CLOUDINARY_CLOUD_NAME": "test-cloud",
     "CLOUDINARY_API_KEY": "test-key",
     "CLOUDINARY_API_SECRET": "test-secret",
@@ -46,12 +44,7 @@ _TEST_ENVIRONMENT = {
     "EMAIL_TIMEOUT": "10",
     "SHIPPING_FEE_INSIDE_VALLEY": "150.00",
     "SHIPPING_FEE_OUTSIDE_VALLEY": "250.00",
-    # No test reaches the network; the client is stubbed at the HTTP boundary.
-    "KHALTI_BASE_URL": "https://khalti.invalid/api/v2/",
-    "KHALTI_SECRET_KEY": "test-secret-key",
-    "KHALTI_RETURN_URL": "https://api.invalid/api/v1/payments/khalti/return/",
     "STOREFRONT_URL": "https://storefront.invalid",
-    "KHALTI_TIMEOUT": "10",
 }
 
 os.environ.update(_TEST_ENVIRONMENT)
@@ -63,22 +56,19 @@ from config.settings.base import *
 for _alias in DATABASES:
     DATABASES[_alias]["OPTIONS"]["sslmode"] = "prefer"
 
-# The suite must not need Redis; the readiness test patches the cache to prove the
-# failure path instead of relying on a live server.
+# Local memory rather than production's DatabaseCache, so the query-count tests
+# measure an endpoint's own queries and not the throttle's cache writes.
+# apps/core/tests/test_throttling.py covers the database-backed throttle.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "test-cache",
     },
-    THROTTLE_FALLBACK_CACHE_ALIAS: {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "test-throttle-fallback",
-    },
 }
 
 # A temporary root keeps uploads off the working tree and out of Cloudinary, so
 # the suite never makes a network call.
-MEDIA_ROOT = Path(tempfile.mkdtemp(prefix="clothing-store-test-media-"))
+MEDIA_ROOT = Path(tempfile.mkdtemp(prefix="truelux-test-media-"))
 
 STORAGES = {
     **STORAGES,

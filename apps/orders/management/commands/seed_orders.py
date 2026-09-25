@@ -2,15 +2,11 @@
 
 `seed_demo` gives a developer a catalogue; this gives them orders against it, in
 every state the admin has an action for. Without it `OrderAdmin` and `PaymentAdmin`
-are empty pages, and the three standing duties in `docs/handover.md` -- release
-held stock, verify a stranded payment, resend a failed email -- cannot be practised
-against anything.
+are empty pages.
 
 Every order is placed through `place_order` and moved by the same transition
 services the admin calls, so the stock arithmetic, the order numbers and the
-payment rows are the ones the application would really produce. The single
-exception is the Khalti payment row, which is written directly: `initiate_khalti_payment`
-makes an HTTP request, and a seed command must not reach the network.
+payment rows are the ones the application would really produce.
 """
 
 from collections import Counter
@@ -31,7 +27,7 @@ from apps.orders.services import (
     mark_order_shipped,
     place_order,
 )
-from apps.payments.models import Payment, PaymentStatus
+from apps.payments.models import Payment
 from apps.payments.services import complete_cod_payment, record_cod_payment
 
 # Every seeded order carries an address at this domain, and `--flush` deletes by it.
@@ -50,8 +46,6 @@ class OrderSpec:
     # this does not couple to seed_demo's catalogue.
     lines: tuple[tuple[int, int], ...]
     status: str
-    # Khalti only. False leaves the payment pending, as an abandoned redirect does.
-    payment_completed: bool = True
     note: str = ""
 
 
@@ -65,17 +59,13 @@ ORDERS: tuple[OrderSpec, ...] = (
         status=OrderStatus.PENDING,
         note="Leave with the neighbour if I am out.",
     ),
-    # The failure mode ADR 0004 accepts: the customer reached Khalti and never came
-    # back, and this order holds its stock until a human cancels it. The pending
-    # Khalti payment is what "Verify selected payments with Khalti" is for.
     OrderSpec(
         full_name="Bikash Thapa",
         city="Lalitpur",
         district="Lalitpur",
-        payment_method=PaymentMethod.KHALTI,
+        payment_method=PaymentMethod.COD,
         lines=((1, 2),),
         status=OrderStatus.PENDING,
-        payment_completed=False,
     ),
     OrderSpec(
         full_name="Chhiring Sherpa",
@@ -89,7 +79,7 @@ ORDERS: tuple[OrderSpec, ...] = (
         full_name="Deepa Gurung",
         city="Bhaktapur",
         district="Bhaktapur",
-        payment_method=PaymentMethod.KHALTI,
+        payment_method=PaymentMethod.COD,
         lines=((4, 3),),
         status=OrderStatus.PAID,
     ),
@@ -105,7 +95,7 @@ ORDERS: tuple[OrderSpec, ...] = (
         full_name="Furba Tamang",
         city="Biratnagar",
         district="Morang",
-        payment_method=PaymentMethod.KHALTI,
+        payment_method=PaymentMethod.COD,
         lines=((6, 1), (7, 2)),
         status=OrderStatus.DELIVERED,
     ),
@@ -177,9 +167,7 @@ class Command(BaseCommand):
             )
         )
         self.stdout.write(
-            "One Khalti order is deliberately unpaid and still holding its stock, "
-            "which is what the admin's verify action exists for. The confirmation "
-            "emails above are the console backend working, not an error."
+            "The confirmation emails above are the console backend working, not an error."
         )
 
     def _flush(self) -> None:
@@ -229,47 +217,16 @@ class Command(BaseCommand):
             note=spec.note,
         )
 
-        if spec.payment_method == PaymentMethod.KHALTI:
-            self._advance_khalti(order, spec)
-        else:
-            self._advance_cod(order, spec)
+        payment = record_cod_payment(order=order)
 
-        # complete_cod_payment marks the order paid through its own locked
-        # instance, so this one is a status behind and the next transition would
-        # refuse. Refreshed for both methods rather than only the one that needs
-        # it, so the difference cannot become a trap later.
-        order.refresh_from_db()
-
+        if spec.status in (OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED):
+            mark_order_paid(order=order)
         if spec.status in (OrderStatus.SHIPPED, OrderStatus.DELIVERED):
             mark_order_shipped(order=order)
         if spec.status == OrderStatus.DELIVERED:
             mark_order_delivered(order=order)
+            complete_cod_payment(payment=payment)
         if spec.status == OrderStatus.CANCELLED:
             cancel_order(order=order)
 
         return order
-
-    def _advance_cod(self, order: Order, spec: OrderSpec) -> None:
-        payment = record_cod_payment(order=order)
-        if spec.status != OrderStatus.PENDING and spec.status != OrderStatus.CANCELLED:
-            # The service the merchant's "Mark cash as collected" action calls. It
-            # marks the order paid too, which is why nothing here calls
-            # mark_order_paid for a cash order.
-            complete_cod_payment(payment=payment)
-
-    def _advance_khalti(self, order: Order, spec: OrderSpec) -> None:
-        # Written directly rather than through initiate_khalti_payment, which makes
-        # an HTTP request. The shape matches what that service records, plus what
-        # verify_khalti_payment adds on a Completed lookup.
-        completed = spec.payment_completed and spec.status != OrderStatus.PENDING
-        Payment.objects.create(
-            order=order,
-            method=PaymentMethod.KHALTI,
-            status=PaymentStatus.COMPLETED if completed else PaymentStatus.PENDING,
-            amount=order.total,
-            pidx=f"seed-pidx-{order.order_number}",
-            transaction_id=f"seed-txn-{order.order_number}" if completed else "",
-            raw_status="Completed" if completed else "",
-        )
-        if completed:
-            mark_order_paid(order=order)

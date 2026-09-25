@@ -38,10 +38,8 @@ NEVER_ECHOED = frozenset(
     {
         "DATABASE_URL",
         "DATABASE_DIRECT_URL",
-        "REDIS_URL",
         "DJANGO_SECRET_KEY",
         "CLOUDINARY_API_SECRET",
-        "KHALTI_SECRET_KEY",
         "EMAIL_HOST_PASSWORD",
     }
 )

@@ -5,6 +5,7 @@ from rest_framework.filters import SearchFilter
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.serializers import BaseSerializer
+from rest_framework.throttling import ScopedRateThrottle
 
 from apps.catalog.filters import DeterministicOrderingFilter, ProductFilter
 from apps.catalog.models import Category, Product
@@ -18,14 +19,13 @@ from apps.catalog.serializers import (
     ProductDetailSerializer,
     ProductListSerializer,
 )
-from apps.core.throttling import ResilientScopedRateThrottle
 
 CATALOG_THROTTLE_SCOPE = "catalog"
 
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet[Product]):
     permission_classes = (AllowAny,)
-    throttle_classes = (ResilientScopedRateThrottle,)
+    throttle_classes = (ScopedRateThrottle,)
     throttle_scope = CATALOG_THROTTLE_SCOPE
     # The storefront needs readable, SEO-stable URLs, which is the one place this
     # repository looks up a detail route by something other than a UUID.
@@ -54,7 +54,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet[Product]):
 
 class CategoryListView(ListAPIView[Category]):
     permission_classes = (AllowAny,)
-    throttle_classes = (ResilientScopedRateThrottle,)
+    throttle_classes = (ScopedRateThrottle,)
     throttle_scope = CATALOG_THROTTLE_SCOPE
     serializer_class = CategoryTreeSerializer
     # Navigation is useless truncated, and a merchant adding a 26th root category

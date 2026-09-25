@@ -238,77 +238,6 @@ wheels = [
 ]
 
 [[package]]
-name = "clothing-store-backend"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "cloudinary" },
-    { name = "django" },
-    { name = "django-cloudinary-storage" },
-    { name = "django-cors-headers" },
-    { name = "django-environ" },
-    { name = "django-filter" },
-    { name = "djangorestframework" },
-    { name = "djangorestframework-simplejwt" },
-    { name = "drf-spectacular" },
-    { name = "gunicorn" },
-    { name = "pillow" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "redis" },
-    { name = "requests" },
-    { name = "structlog" },
-    { name = "whitenoise" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "django-stubs", extra = ["compatible-mypy"] },
-    { name = "djangorestframework-stubs", extra = ["compatible-mypy"] },
-    { name = "factory-boy" },
-    { name = "freezegun" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-django" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cloudinary", specifier = ">=1.41" },
-    { name = "django", specifier = ">=5.1,<6.0" },
-    { name = "django-cloudinary-storage", specifier = ">=0.3" },
-    { name = "django-cors-headers", specifier = ">=4.4" },
-    { name = "django-environ", specifier = ">=0.11" },
-    { name = "django-filter", specifier = ">=24.3" },
-    { name = "djangorestframework", specifier = ">=3.15" },
-    { name = "djangorestframework-simplejwt", specifier = ">=5.3" },
-    { name = "drf-spectacular", specifier = ">=0.27" },
-    { name = "gunicorn", specifier = ">=23.0" },
-    { name = "pillow", specifier = ">=11.0" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "redis", specifier = ">=5.0" },
-    { name = "requests", specifier = ">=2.32" },
-    { name = "structlog", specifier = ">=24.4" },
-    { name = "whitenoise", specifier = ">=6.7" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "django-stubs", extras = ["compatible-mypy"], specifier = ">=5.1" },
-    { name = "djangorestframework-stubs", extras = ["compatible-mypy"], specifier = ">=3.15" },
-    { name = "factory-boy", specifier = ">=3.3" },
-    { name = "freezegun", specifier = ">=1.5" },
-    { name = "mypy", specifier = ">=1.13" },
-    { name = "pre-commit", specifier = ">=4.0" },
-    { name = "pytest", specifier = ">=8.3" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "pytest-django", specifier = ">=4.9" },
-    { name = "ruff", specifier = ">=0.7" },
-]
-
-[[package]]
 name = "cloudinary"
 version = "1.46.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1209,15 +1138,6 @@ wheels = [
 ]
 
 [[package]]
-name = "redis"
-version = "8.1.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25", size = 5254356, upload-time = "2026-07-30T08:51:00.269Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb", size = 560618, upload-time = "2026-07-30T08:50:58.497Z" },
-]
-
-[[package]]
 name = "referencing"
 version = "0.37.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1392,6 +1312,73 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5e/89/b4a0bcfdf4f71a3dea31379f095929613d7e4528a0996bca6aa964cd0dca/structlog-26.1.0.tar.gz", hash = "sha256:f63a716cbd1b1291cf7661de7794b455acfa4c43c5bcf1630e6ad5ddc1adb3b7", size = 1459881, upload-time = "2026-06-06T07:33:39.348Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a9/18/489c97b834dfff9cf2fc2507cede4bcd4b11e67f84bc462acd1992496f86/structlog-26.1.0-py3-none-any.whl", hash = "sha256:e081a26d6c373e6d201eca24eede26d8ffab07f88f477822e679183428d3d91e", size = 73764, upload-time = "2026-06-06T07:33:38.046Z" },
+]
+
+[[package]]
+name = "truelux-backend"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "cloudinary" },
+    { name = "django" },
+    { name = "django-cloudinary-storage" },
+    { name = "django-cors-headers" },
+    { name = "django-environ" },
+    { name = "django-filter" },
+    { name = "djangorestframework" },
+    { name = "djangorestframework-simplejwt" },
+    { name = "drf-spectacular" },
+    { name = "gunicorn" },
+    { name = "pillow" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "structlog" },
+    { name = "whitenoise" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "django-stubs", extra = ["compatible-mypy"] },
+    { name = "djangorestframework-stubs", extra = ["compatible-mypy"] },
+    { name = "factory-boy" },
+    { name = "freezegun" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-django" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cloudinary", specifier = ">=1.41" },
+    { name = "django", specifier = ">=5.1,<6.0" },
+    { name = "django-cloudinary-storage", specifier = ">=0.3" },
+    { name = "django-cors-headers", specifier = ">=4.4" },
+    { name = "django-environ", specifier = ">=0.11" },
+    { name = "django-filter", specifier = ">=24.3" },
+    { name = "djangorestframework", specifier = ">=3.15" },
+    { name = "djangorestframework-simplejwt", specifier = ">=5.3" },
+    { name = "drf-spectacular", specifier = ">=0.27" },
+    { name = "gunicorn", specifier = ">=23.0" },
+    { name = "pillow", specifier = ">=11.0" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "structlog", specifier = ">=24.4" },
+    { name = "whitenoise", specifier = ">=6.7" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "django-stubs", extras = ["compatible-mypy"], specifier = ">=5.1" },
+    { name = "djangorestframework-stubs", extras = ["compatible-mypy"], specifier = ">=3.15" },
+    { name = "factory-boy", specifier = ">=3.3" },
+    { name = "freezegun", specifier = ">=1.5" },
+    { name = "mypy", specifier = ">=1.13" },
+    { name = "pre-commit", specifier = ">=4.0" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-cov", specifier = ">=5.0" },
+    { name = "pytest-django", specifier = ">=4.9" },
+    { name = "ruff", specifier = ">=0.7" },
 ]
 
 [[package]]

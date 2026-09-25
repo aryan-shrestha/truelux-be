@@ -21,7 +21,7 @@ def _order_context(order: Order) -> dict[str, object]:
 def send_order_confirmation(*, order: Order) -> bool:
     return send_email(
         to=order.email,
-        subject=f"Order {order.order_number} received",
+        subject=f"TrueLux order {order.order_number} received",
         template_name=CONFIRMATION_TEMPLATE,
         context=_order_context(order),
         reference=order.order_number,
@@ -31,7 +31,7 @@ def send_order_confirmation(*, order: Order) -> bool:
 def send_order_shipped(*, order: Order) -> bool:
     return send_email(
         to=order.email,
-        subject=f"Order {order.order_number} is on its way",
+        subject=f"Your TrueLux order {order.order_number} is on its way",
         template_name=SHIPPED_TEMPLATE,
         context=_order_context(order),
         reference=order.order_number,

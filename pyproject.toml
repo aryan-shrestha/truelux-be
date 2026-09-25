@@ -1,7 +1,7 @@
 [project]
-name = "clothing-store-backend"
+name = "truelux-backend"
 version = "0.1.0"
-description = "Clothing store backend API (Django 5 + DRF)."
+description = "TrueLux cosmetics store backend API (Django 5 + DRF)."
 requires-python = ">=3.12"
 dependencies = [
     "django>=5.1,<6.0",
@@ -12,17 +12,12 @@ dependencies = [
     "django-cors-headers>=4.4",
     "django-environ>=0.11",
     "psycopg[binary]>=3.2",
-    "redis>=5.0",
     "gunicorn>=23.0",
     "structlog>=24.4",
     "whitenoise>=6.7",
     "cloudinary>=1.41",
     "django-cloudinary-storage>=0.3",
     "pillow>=11.0",
-    # Declared although cloudinary already pulls it in: apps/payments/client.py
-    # imports it directly, and an undeclared dependency breaks the day its only
-    # declaring package drops it. Ships py.typed, so no stub package is needed.
-    "requests>=2.32",
 ]
 
 [dependency-groups]
@@ -42,7 +37,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["*/migrations/*"]
+extend-exclude = ["*/migrations/*", ".claude"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "DJ", "SIM", "RUF", "S", "BLE"]

@@ -9,7 +9,7 @@
 
 services:
   - type: web
-    name: clothing-store-api
+    name: truelux-api
     runtime: python
     plan: free
     # Supabase is in ap-northeast-2. Singapore is the nearest of Render's five
@@ -19,9 +19,8 @@ services:
     region: singapore
     branch: main
 
-    # Liveness, not readiness. /health/ touches no dependency, deliberately: a
-    # database outage must not make Render recycle containers that are answering
-    # fine. /health/ready/ returns 503 on a Redis blip, which is expected.
+    # Liveness, not readiness: a database outage must not make Render recycle
+    # containers that are answering fine.
     healthCheckPath: /health/
 
     # Migrations run here rather than in a preDeployCommand, which the free tier
@@ -31,16 +30,17 @@ services:
     # on upgrading the instance type.
     #
     # --database=direct because migrations cannot run over Supabase's pooler.
+    # createcachetable builds the table the throttle counters live in (ADR 0014).
     buildCommand: >-
       uv sync --frozen &&
       uv run python manage.py migrate --database=direct &&
+      uv run python manage.py createcachetable --database=direct &&
       uv run python manage.py collectstatic --noinput
 
     # $PORT because Render's default is 10000 and it only *usually* detects a
     # different one; when detection fails the deploy fails.
-    # --timeout 30 because ADR 0005 calls Khalti inside the request and ADR 0006
-    # sends SMTP inside it, each with a 10s timeout of its own, and a Cloudinary
-    # upload is synchronous on top. 30s is the floor here, not headroom.
+    # --timeout 30 because ADR 0006 sends SMTP inside the request with a 10s
+    # timeout of its own, and an admin image upload to Cloudinary is synchronous.
     # --workers 2 because the free instance has 512 MB.
     startCommand: >-
       uv run gunicorn config.wsgi:application
@@ -60,15 +60,11 @@ services:
         sync: false
       - key: DATABASE_DIRECT_URL
         sync: false
-      - key: REDIS_URL
-        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
-        sync: false
-      - key: KHALTI_SECRET_KEY
         sync: false
       - key: EMAIL_HOST_USER
         sync: false
@@ -90,10 +86,6 @@ services:
       - key: DJANGO_DEFAULT_FROM_EMAIL
         sync: false
       - key: EMAIL_HOST
-        sync: false
-      - key: KHALTI_BASE_URL
-        sync: false
-      - key: KHALTI_RETURN_URL
         sync: false
 
       # manage.py falls back to config.settings.local, so without this the build's
@@ -124,8 +116,6 @@ services:
         value: 20/hour
       - key: DJANGO_THROTTLE_CHECKOUT
         value: 30/hour
-      - key: DJANGO_THROTTLE_PAYMENT_RETURN
-        value: 60/hour
       - key: DJANGO_EMAIL_BACKEND
         value: django.core.mail.backends.smtp.EmailBackend
       - key: EMAIL_PORT
@@ -138,5 +128,3 @@ services:
         value: "150.00"
       - key: SHIPPING_FEE_OUTSIDE_VALLEY
         value: "250.00"
-      - key: KHALTI_TIMEOUT
-        value: "10"

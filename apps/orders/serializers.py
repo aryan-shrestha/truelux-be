@@ -92,7 +92,5 @@ class CheckoutResponseSerializer(serializers.ModelSerializer[Order]):
     class Meta:
         model = Order
         # Smaller than OrderReadSerializer by design: the customer has just sent
-        # the address, and `access_token` reaches them only by email. `payment_url`
-        # is added by the view for Khalti: it belongs to the gateway handoff, not to
-        # the order, and cash on delivery omits the key rather than sending null.
+        # the address, and `access_token` reaches them only by email.
         fields = ("order_number", "status", "subtotal", "shipping_fee", "total")

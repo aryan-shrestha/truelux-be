@@ -17,11 +17,7 @@
   </table>
 
   <p style="margin:16px 0;font-size:14px;">
-    {% if order.payment_method == "cod" %}
-      You will pay the courier in cash when it arrives.
-    {% else %}
-      Payment was made through Khalti.
-    {% endif %}
+    We will call to confirm your order. You pay the courier in cash when it arrives.
   </p>
 
   {% include "orders/email/_address.html" %}

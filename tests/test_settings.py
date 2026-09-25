@@ -21,7 +21,6 @@ EXAMPLE_BLANKS = {
     "CLOUDINARY_CLOUD_NAME": "test-cloud",
     "CLOUDINARY_API_KEY": "test-key",
     "CLOUDINARY_API_SECRET": "test-secret",
-    "KHALTI_SECRET_KEY": "test-secret-key",
 }
 
 
@@ -104,15 +103,13 @@ def test_a_variable_that_may_be_empty_is_accepted_empty(clean_env, name):
         ("DJANGO_DEBUG", "Tru"),
         ("EMAIL_PORT", "five-eight-seven"),
         ("SHIPPING_FEE_INSIDE_VALLEY", "one hundred"),
-        ("KHALTI_BASE_URL", "dev.khalti.com/api/v2/"),
+        ("STOREFRONT_URL", "shop.example.com"),
         ("DATABASE_URL", "not-a-database-url"),
         ("DJANGO_THROTTLE_CATALOG", "600/fortnight"),
         ("DJANGO_THROTTLE_CATALOG", "lots/hour"),
     ],
 )
 def test_a_malformed_value_fails_at_import(clean_env, name, value):
-    # Each of these used to boot happily and fail later — at the first request for a
-    # throttle rate, at the first payment for a URL.
     clean_env.setenv(name, value)
 
     with pytest.raises(ImproperlyConfigured, match=name):
@@ -174,7 +171,7 @@ def test_a_malformed_database_url_does_not_leak_its_password(clean_env):
 
 def test_every_problem_is_reported_in_one_exception(clean_env):
     clean_env.delenv("DJANGO_SECRET_KEY", raising=False)
-    clean_env.delenv("REDIS_URL", raising=False)
+    clean_env.delenv("DATABASE_URL", raising=False)
     clean_env.setenv("EMAIL_PORT", "not-a-number")
     clean_env.setenv("DJANGO_THROTTLE_ANON", "60/fortnight")
 
@@ -184,7 +181,7 @@ def test_every_problem_is_reported_in_one_exception(clean_env):
     # One boot names everything, rather than one variable per deploy cycle.
     message = str(exc_info.value)
     assert "DJANGO_SECRET_KEY is not set" in message
-    assert "REDIS_URL is not set" in message
+    assert "DATABASE_URL is not set" in message
     assert "EMAIL_PORT must be a whole number" in message
     assert "DJANGO_THROTTLE_ANON must be a rate like 60/hour" in message
 
@@ -237,14 +234,14 @@ def test_production_appends_the_render_hostname(clean_env):
     # Render injects this into every service. Without it every request, including
     # the platform health check, is a 400 DisallowedHost.
     clean_env.setenv("DJANGO_ALLOWED_HOSTS", "shop.example.com")
-    clean_env.setenv("RENDER_EXTERNAL_HOSTNAME", "clothing-store-api.onrender.com")
+    clean_env.setenv("RENDER_EXTERNAL_HOSTNAME", "truelux-api.onrender.com")
 
     # base first: `from base import *` copies values, so reloading production alone
     # would re-run the append against whatever ALLOWED_HOSTS was already imported.
     _reload("config.settings.base")
     settings = _reload("config.settings.production")
 
-    assert settings.ALLOWED_HOSTS == ["shop.example.com", "clothing-store-api.onrender.com"]
+    assert settings.ALLOWED_HOSTS == ["shop.example.com", "truelux-api.onrender.com"]
 
 
 def test_production_leaves_allowed_hosts_alone_off_render(clean_env):
@@ -287,12 +284,23 @@ def test_pooler_constraints_are_applied(clean_env, alias):
     assert database["CONN_MAX_AGE"] == 0
     assert database["DISABLE_SERVER_SIDE_CURSORS"] is True
     assert database["OPTIONS"]["prepare_threshold"] is None
-    # The setting that silently protects ADR 0004's and ADR 0005's shared
-    # constraint. Flipped to True, every view body runs inside a transaction, and
-    # the Khalti call moves inside one without a line changing in `orders` or
-    # `payments`. `test_gateway_is_not_called_inside_transaction` would catch it;
-    # this catches it one layer earlier, and says why.
+    # Flipped to True, every view body runs inside a transaction, and ADR 0006's
+    # on-commit email and every Cloudinary upload would move inside one.
     assert database["ATOMIC_REQUESTS"] is False
+
+
+def test_the_cache_is_the_database_table_the_build_creates(clean_env):
+    settings = _reload("config.settings.base")
+
+    assert settings.CACHES["default"] == {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
+    }
+
+
+def test_the_blueprint_build_creates_the_cache_table():
+    source = (BASE_DIR / "render.yaml").read_text()
+    assert "manage.py createcachetable --database=direct" in source
 
 
 def test_direct_alias_mirrors_default_so_tests_build_one_database(clean_env):
@@ -314,10 +322,13 @@ def test_env_example_documents_every_variable_the_settings_read():
     )
 
 
+# Read by Django before any settings module loads, and listed in .env.example only
+# so the blueprint guard accepts it. See the exceptions in docs/convention.md.
+READ_BEFORE_SETTINGS = {"DJANGO_SETTINGS_MODULE"}
+
+
 def test_env_example_documents_nothing_the_settings_ignore():
-    # The other direction: a variable nobody reads is an instruction to set something
-    # that does nothing, which is worse than no instruction.
-    unread = _variables_documented() - _variables_read_by_settings()
+    unread = _variables_documented() - _variables_read_by_settings() - READ_BEFORE_SETTINGS
 
     assert not unread, (
         "These are in .env.example but read nowhere in config/settings/base.py: "

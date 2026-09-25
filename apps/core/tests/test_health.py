@@ -35,7 +35,7 @@ def test_readiness_returns_503_without_exception_text_when_cache_is_down(api_cli
     url = reverse("health:ready")
 
     with mock.patch(
-        "apps.core.views.cache.set", side_effect=ConnectionError("redis://secret@host")
+        "apps.core.views.cache.set", side_effect=ConnectionError("relation django_cache secret")
     ):
         response = api_client.get(url)
 

@@ -27,8 +27,9 @@ format: ## Apply formatting and safe lint fixes
 typecheck: ## Run mypy
 	uv run mypy .
 
-migrate: ## Apply migrations over the direct connection
+migrate: ## Apply migrations and create the cache table over the direct connection
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) migrate --database=direct
+	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) createcachetable --database=direct
 
 makemigrations: ## Generate migrations
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) makemigrations

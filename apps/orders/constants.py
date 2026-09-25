@@ -19,4 +19,3 @@ class OrderStatus(models.TextChoices):
 
 class PaymentMethod(models.TextChoices):
     COD = "cod", "Cash on delivery"
-    KHALTI = "khalti", "Khalti"
