@@ -30,9 +30,7 @@ def _act(admin_client, action, orders):
 
 
 def test_status_is_not_an_editable_form_field():
-    # The single line that makes ADR 0002 enforceable rather than aspirational.
-    # A naive status write would skip the transition guards, and once
-    # transactional-email lands, the shipping email with them.
+    # A naive status write would skip the transition guards and the shipping email.
     assert "status" in OrderAdmin.readonly_fields
 
 

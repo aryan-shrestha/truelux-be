@@ -194,13 +194,8 @@ def test_a_restock_and_a_sale_do_not_interleave():
         thread.join(timeout=30)
 
     variant.refresh_from_db()
-    # Whichever ran second, the two writes serialised: 47 if the sale went first,
-    # 50 if the restock did. 10 would mean both wrote from the same starting value.
-    #
-    # This passes with set_variant_stock's select_for_update removed, and that is
-    # not a gap in the test -- the write is absolute, so PostgreSQL's row lock on
-    # the UPDATE is already enough. The service keeps the lock for the reason its
-    # own comment gives, which is the accuracy of the logged previous value.
+    # The two writes serialised: 47 if the sale went first, 50 if the restock did.
+    # 10 would mean both wrote from the same starting value.
     assert variant.stock_quantity in (47, 50)
 
 

@@ -28,8 +28,6 @@ class ShippingAddressSerializer(serializers.Serializer[Order]):
 
 class OrderReadSerializer(serializers.ModelSerializer[Order]):
     placed_at = serializers.DateTimeField(source="created_at", read_only=True)
-    # source="*" hands the order itself to the nested serializer, which reads the
-    # flat address columns and renders them as one object.
     shipping = ShippingAddressSerializer(source="*", read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
 

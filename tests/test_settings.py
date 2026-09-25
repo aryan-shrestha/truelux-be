@@ -123,10 +123,8 @@ def test_a_secret_is_never_echoed_into_the_exception(clean_env, name):
     # never-log list.
     secret = "s3cret-value-that-must-not-appear"
     clean_env.setenv(name, secret)
-    # An unrelated variable is broken so that a boot failure is guaranteed for every
-    # name. With the assertion inside an `except` and nothing else wrong, the four
-    # secrets whose probe value is a *valid* text value raised nothing, the body
-    # never ran, and the test passed having checked nothing.
+    # An unrelated variable is broken so the import fails for every name; otherwise a
+    # secret whose probe value is valid would raise nothing and assert nothing.
     clean_env.setenv("DJANGO_THROTTLE_CATALOG", "lots/hour")
 
     with pytest.raises(ImproperlyConfigured) as exc_info:
@@ -187,8 +185,7 @@ def test_every_problem_is_reported_in_one_exception(clean_env):
 
 
 def _variables_declared_by_the_blueprint() -> set[str]:
-    # Matched rather than parsed: PyYAML is only a transitive dependency here, and
-    # pyproject.toml's note on `requests` is explicit about importing those.
+    # Matched rather than parsed: PyYAML is only a transitive dependency.
     source = (BASE_DIR / "render.yaml").read_text()
     return set(re.findall(r"^\s*- key: ([A-Z][A-Z0-9_]*)\s*$", source, re.M))
 
@@ -309,10 +306,6 @@ def test_direct_alias_mirrors_default_so_tests_build_one_database(clean_env):
     assert settings.DATABASES["direct"]["TEST"] == {"MIRROR": "default"}
 
 
-# `docs/features/media-storage.md` lists "`.env.example` lists every variable
-# `base.py` reads" under Implemented, which makes it an invariant rather than a
-# courtesy. It drifted silently across four features before anyone noticed, so it is
-# asserted here rather than remembered.
 def test_env_example_documents_every_variable_the_settings_read():
     undocumented = _variables_read_by_settings() - _variables_documented()
 

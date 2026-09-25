@@ -53,12 +53,9 @@ class OrderAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptab
         "resend_shipping_notice",
     )
 
-    # `status` is readonly, and that single line is what makes ADR 0002 enforceable
-    # rather than aspirational: a naive status write would skip the transition
-    # guards and, once transactional-email lands, the shipping email with them.
-    # `access_token` is absent from every list, search and fieldset below -- it is a
-    # bearer credential, and the admin is the one place it would otherwise be
-    # casually visible over someone's shoulder.
+    # `status` is read-only so it moves only through the transition services, which
+    # guard it and send the shipping email (ADR 0002). `access_token` is a bearer
+    # credential, so it appears in no list, search or fieldset.
     readonly_fields = (
         "order_number",
         "status",

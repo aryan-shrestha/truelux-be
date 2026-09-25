@@ -123,12 +123,8 @@ def set_variant_stock(*, variant: ProductVariant, quantity: int) -> ProductVaria
         raise ValueError(f"Stock cannot be negative; got {quantity}.")
 
     with transaction.atomic():
-        # The lock is not what prevents a lost update here -- this write is
-        # absolute, so there is no read-modify-write to lose, and a concurrent
-        # decrement is serialised by its own lock and by PostgreSQL's row lock on
-        # the UPDATE. What it buys is that `previous` below is the value this write
-        # actually replaced, so the audit line is true rather than nearly true, and
-        # that a future change to delta semantics cannot silently race.
+        # The write is absolute, so the lock is not about lost updates: it makes
+        # `previous` in the audit line the value this write actually replaced.
         locked = ProductVariant.objects.select_for_update().get(pk=variant.pk)
         previous = locked.stock_quantity
 

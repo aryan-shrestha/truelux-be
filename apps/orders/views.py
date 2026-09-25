@@ -36,9 +36,7 @@ class OrderDetailView(RetrieveAPIView[Order]):
 
 class OrderLookupView(APIView):
     permission_classes = (AllowAny,)
-    # Its own scope, kept low: order numbers run in sequence, so this is the one
-    # endpoint where guessing is cheap. catalog-browsing.md took a separate scope
-    # precisely so the global anon rate could stay low for this.
+    # Its own low scope: order numbers run in sequence, so guessing here is cheap.
     throttle_classes = (ScopedRateThrottle,)
     throttle_scope = ORDER_LOOKUP_THROTTLE_SCOPE
 

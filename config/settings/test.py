@@ -2,19 +2,11 @@ import os
 import tempfile
 from pathlib import Path
 
-# Set before base.py is imported, because ADR 0008 gives every variable a hard
-# requirement and no default: importing base.py with an unconfigured environment is
-# now an ImproperlyConfigured, and the suite must run on a machine that has never
-# held a Cloudinary account or an SMTP server.
-#
-# Assigned, not `setdefault`. These values define the suite, and a developer whose
-# shell exports the project's variables -- from direnv, or a sourced .env -- would
-# otherwise run against their own configuration: a real DJANGO_SECURE_SSL_REDIRECT
-# turns every test-client request into a 301, which fails 108 tests in a way that
-# looks like broken code. The database URLs are deliberately absent from this dict
-# and are still taken from the environment, so CI keeps pointing the suite at its
-# own Postgres. The values are deliberately fake; `.invalid` is reserved by
-# RFC 2606 and can never resolve.
+# Set before base.py is imported: ADR 0008 makes every variable required, and the
+# suite must run without a Cloudinary account or an SMTP server. Assigned rather
+# than `setdefault`, so a developer's exported .env (a real SSL redirect, say) cannot
+# leak into the suite. The database URLs are deliberately absent, so CI and .env
+# still choose the Postgres. `.invalid` (RFC 2606) can never resolve.
 _TEST_ENVIRONMENT = {
     "DJANGO_SECRET_KEY": "test-secret-key-long-enough-to-sign-jwts",
     "DJANGO_DEBUG": "False",

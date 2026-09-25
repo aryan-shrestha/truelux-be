@@ -320,10 +320,8 @@ def test_exceeding_checkout_throttle_returns_429(api_client):
 
 
 def test_place_order_with_no_items_raises_empty_cart():
-    # Unreachable over HTTP -- CheckoutSerializer's allow_empty=False answers 400
-    # first -- but place_order is a service that #10's admin and the shell can call
-    # directly, and an empty cart would otherwise write an order with no lines and
-    # a zero total.
+    # Unreachable over HTTP (the serializer answers 400 first), but a service can be
+    # called directly, and an empty cart would write an order with no lines.
     with pytest.raises(EmptyCart):
         place_order(
             items=[],
