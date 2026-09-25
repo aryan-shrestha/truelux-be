@@ -1,39 +1,39 @@
-"""Populate a development order history.
-
-`seed_demo` gives a developer a catalogue; this gives them orders against it, in
-every state the admin has an action for. Without it `OrderAdmin` and `PaymentAdmin`
-are empty pages.
+"""Populate a development order history across the last month, in every status.
 
 Every order is placed through `place_order` and moved by the same transition
-services the admin calls, so the stock arithmetic, the order numbers and the
-payment rows are the ones the application would really produce.
+services the admin API calls, so stock, order numbers and payment rows are the
+ones the application would produce. Only `created_at` is rewritten afterwards,
+because the admin dashboard's revenue and sales-by-day need a history.
 """
 
 from collections import Counter
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
+from django.utils import timezone
 
 from apps.catalog.models import ProductVariant
 from apps.orders.constants import OrderStatus, PaymentMethod
 from apps.orders.models import Order
-from apps.orders.services import (
-    cancel_order,
-    mark_order_delivered,
-    mark_order_paid,
-    mark_order_shipped,
-    place_order,
-)
+from apps.orders.services import place_order, transition_order
 from apps.payments.models import Payment
 from apps.payments.services import complete_cod_payment, record_cod_payment
 
-# Every seeded order carries an address at this domain, and `--flush` deletes by it.
-# `.invalid` is reserved by RFC 2606 and can never resolve, so a seeded confirmation
-# cannot reach a real inbox even if a developer points the seed at a real SMTP relay.
+# `--flush` deletes by this domain. `.invalid` (RFC 2606) can never resolve, so a
+# seeded confirmation cannot reach a real inbox even through a real SMTP relay.
 SEED_EMAIL_DOMAIN = "seed.invalid"
+
+_PATH_TO: dict[str, tuple[str, ...]] = {
+    OrderStatus.PENDING: (),
+    OrderStatus.CONFIRMED: (OrderStatus.CONFIRMED,),
+    OrderStatus.SHIPPED: (OrderStatus.CONFIRMED, OrderStatus.SHIPPED),
+    OrderStatus.DELIVERED: (OrderStatus.CONFIRMED, OrderStatus.SHIPPED, OrderStatus.DELIVERED),
+    OrderStatus.CANCELLED: (OrderStatus.CANCELLED,),
+}
 
 
 @dataclass(frozen=True)
@@ -41,74 +41,42 @@ class OrderSpec:
     full_name: str
     city: str
     district: str
-    payment_method: str
-    # (index into the available variants, quantity). Indexes rather than SKUs so
-    # this does not couple to seed_demo's catalogue.
+    # (index into the available variants, quantity): indexes rather than SKUs so this
+    # does not couple to seed_demo's catalogue.
     lines: tuple[tuple[int, int], ...]
     status: str
+    days_ago: int
     note: str = ""
 
 
 ORDERS: tuple[OrderSpec, ...] = (
     OrderSpec(
-        full_name="Asha Rai",
-        city="Kathmandu",
-        district="Kathmandu",
-        payment_method=PaymentMethod.COD,
-        lines=((0, 1),),
-        status=OrderStatus.PENDING,
-        note="Leave with the neighbour if I am out.",
+        "Asha Rai",
+        "Kathmandu",
+        "Kathmandu",
+        ((0, 1),),
+        OrderStatus.PENDING,
+        0,
+        "Leave with the neighbour if I am out.",
     ),
+    OrderSpec("Bikash Thapa", "Lalitpur", "Lalitpur", ((1, 2),), OrderStatus.PENDING, 0),
+    OrderSpec("Chhiring Sherpa", "Pokhara", "Kaski", ((2, 1), (3, 1)), OrderStatus.CONFIRMED, 1),
+    OrderSpec("Deepa Gurung", "Bhaktapur", "Bhaktapur", ((4, 1),), OrderStatus.CONFIRMED, 2),
+    OrderSpec("Eliza Magar", "Kathmandu", "Kathmandu", ((5, 1),), OrderStatus.SHIPPED, 3),
+    OrderSpec("Furba Tamang", "Biratnagar", "Morang", ((6, 1), (7, 1)), OrderStatus.SHIPPED, 4),
+    OrderSpec("Gita Shrestha", "Kathmandu", "Kathmandu", ((8, 1),), OrderStatus.CANCELLED, 5),
+    OrderSpec("Hari Karki", "Butwal", "Rupandehi", ((9, 1),), OrderStatus.DELIVERED, 6),
+    OrderSpec("Isha Joshi", "Lalitpur", "Lalitpur", ((10, 2),), OrderStatus.DELIVERED, 8),
     OrderSpec(
-        full_name="Bikash Thapa",
-        city="Lalitpur",
-        district="Lalitpur",
-        payment_method=PaymentMethod.COD,
-        lines=((1, 2),),
-        status=OrderStatus.PENDING,
+        "Jamuna Adhikari", "Dharan", "Sunsari", ((11, 1), (12, 1)), OrderStatus.DELIVERED, 10
     ),
-    OrderSpec(
-        full_name="Chhiring Sherpa",
-        city="Pokhara",
-        district="Kaski",
-        payment_method=PaymentMethod.COD,
-        lines=((2, 1), (3, 1)),
-        status=OrderStatus.PAID,
-    ),
-    OrderSpec(
-        full_name="Deepa Gurung",
-        city="Bhaktapur",
-        district="Bhaktapur",
-        payment_method=PaymentMethod.COD,
-        lines=((4, 3),),
-        status=OrderStatus.PAID,
-    ),
-    OrderSpec(
-        full_name="Eliza Magar",
-        city="Kathmandu",
-        district="Kathmandu",
-        payment_method=PaymentMethod.COD,
-        lines=((5, 1),),
-        status=OrderStatus.SHIPPED,
-    ),
-    OrderSpec(
-        full_name="Furba Tamang",
-        city="Biratnagar",
-        district="Morang",
-        payment_method=PaymentMethod.COD,
-        lines=((6, 1), (7, 2)),
-        status=OrderStatus.DELIVERED,
-    ),
-    # Cancelled after placement, so its stock went out and came back. The variant
-    # counts only add up if `cancel_order` did its job.
-    OrderSpec(
-        full_name="Gita Shrestha",
-        city="Kathmandu",
-        district="Kathmandu",
-        payment_method=PaymentMethod.COD,
-        lines=((8, 1),),
-        status=OrderStatus.CANCELLED,
-    ),
+    OrderSpec("Kiran Basnet", "Kathmandu", "Kathmandu", ((13, 1),), OrderStatus.DELIVERED, 12),
+    OrderSpec("Laxmi Poudel", "Chitwan", "Chitwan", ((14, 1),), OrderStatus.CANCELLED, 14),
+    OrderSpec("Maya Lama", "Bhaktapur", "Bhaktapur", ((15, 1), (0, 1)), OrderStatus.DELIVERED, 16),
+    OrderSpec("Nabin KC", "Pokhara", "Kaski", ((16, 1),), OrderStatus.DELIVERED, 19),
+    OrderSpec("Ojaswi Bhandari", "Kathmandu", "Kathmandu", ((17, 1),), OrderStatus.DELIVERED, 22),
+    OrderSpec("Pratima Rana", "Hetauda", "Makwanpur", ((18, 2),), OrderStatus.DELIVERED, 25),
+    OrderSpec("Rojina Maharjan", "Lalitpur", "Lalitpur", ((19, 1),), OrderStatus.DELIVERED, 28),
 )
 
 
@@ -185,13 +153,14 @@ class Command(BaseCommand):
         )
 
     def _available_variants(self) -> list[ProductVariant]:
-        # Ordered by sku so a reseed picks the same variants and the seeded history
-        # is reproducible. Published only: placing an order against an unpublished
-        # variant is exactly what `place_order` refuses.
+        # Ordered by sku so a reseed picks the same variants. Only variants the
+        # storefront could sell, since that is all place_order accepts.
         variants = list(
-            ProductVariant.objects.filter(product__is_published=True, stock_quantity__gte=3)
-            .select_related("product")
-            .order_by("sku")
+            ProductVariant.objects.filter(
+                product__is_published=True,
+                product__brand__is_active=True,
+                stock_quantity__gte=3,
+            ).order_by("sku")
         )
         needed = max(index for spec in ORDERS for index, _ in spec.lines) + 1
         if len(variants) < needed:
@@ -202,31 +171,29 @@ class Command(BaseCommand):
         return variants
 
     def _seed_order(self, spec: OrderSpec, variants: list[ProductVariant]) -> Order:
+        first_name = spec.full_name.split()[0].lower()
         order = place_order(
             items=[
                 {"variant_id": variants[index].pk, "quantity": quantity}
                 for index, quantity in spec.lines
             ],
-            email=f"{spec.full_name.split()[0].lower()}@{SEED_EMAIL_DOMAIN}",
+            email=f"{first_name}@{SEED_EMAIL_DOMAIN}",
             phone="9800000000",
             full_name=spec.full_name,
             address_line="1 Demo Road",
             city=spec.city,
             district=spec.district,
-            payment_method=spec.payment_method,
+            payment_method=PaymentMethod.COD,
             note=spec.note,
         )
-
         payment = record_cod_payment(order=order)
 
-        if spec.status in (OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED):
-            mark_order_paid(order=order)
-        if spec.status in (OrderStatus.SHIPPED, OrderStatus.DELIVERED):
-            mark_order_shipped(order=order)
+        for status in _PATH_TO[spec.status]:
+            order = transition_order(order=order, to=status)
         if spec.status == OrderStatus.DELIVERED:
-            mark_order_delivered(order=order)
             complete_cod_payment(payment=payment)
-        if spec.status == OrderStatus.CANCELLED:
-            cancel_order(order=order)
 
+        Order.objects.filter(pk=order.pk).update(
+            created_at=timezone.now() - timedelta(days=spec.days_ago, hours=len(first_name))
+        )
         return order

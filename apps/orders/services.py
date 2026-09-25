@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -27,7 +27,7 @@ from apps.orders.models import Order, OrderItem
 
 logger = get_logger(__name__)
 
-_CANCELLABLE_STATUSES = (OrderStatus.PENDING, OrderStatus.PAID)
+_CANCELLABLE_STATUSES = (OrderStatus.PENDING, OrderStatus.CONFIRMED)
 _SHIPPED_STATUSES = (OrderStatus.SHIPPED, OrderStatus.DELIVERED)
 
 
@@ -67,21 +67,21 @@ def _transition(*, order: Order, expected: OrderStatus, new: OrderStatus, event:
     return order
 
 
-def mark_order_paid(*, order: Order) -> Order:
+def confirm_order(*, order: Order) -> Order:
     """Raises InvalidStatusTransition unless the order is pending."""
     return _transition(
         order=order,
         expected=OrderStatus.PENDING,
-        new=OrderStatus.PAID,
-        event="order.marked_paid",
+        new=OrderStatus.CONFIRMED,
+        event="order.confirmed",
     )
 
 
 def mark_order_shipped(*, order: Order) -> Order:
-    """Raises InvalidStatusTransition unless the order is paid."""
+    """Raises InvalidStatusTransition unless the order is confirmed."""
     return _transition(
         order=order,
-        expected=OrderStatus.PAID,
+        expected=OrderStatus.CONFIRMED,
         new=OrderStatus.SHIPPED,
         event="order.marked_shipped",
     )
@@ -138,6 +138,24 @@ def cancel_order(*, order: Order) -> Order:
         variant_count=len(quantities),
     )
     return locked
+
+
+_TRANSITION_SERVICES: dict[str, Callable[..., Order]] = {
+    OrderStatus.CONFIRMED: confirm_order,
+    OrderStatus.SHIPPED: mark_order_shipped,
+    OrderStatus.DELIVERED: mark_order_delivered,
+    OrderStatus.CANCELLED: cancel_order,
+}
+
+
+def transition_order(*, order: Order, to: str) -> Order:
+    """Moves an order to `to` through the service that owns that step.
+
+    Raises InvalidStatusTransition for a move ALLOWED_TRANSITIONS does not list,
+    except that cancelling keeps cancel_order's own OrderAlreadyShipped and
+    OrderNotCancellable, which say more.
+    """
+    return _TRANSITION_SERVICES[to](order=order)
 
 
 def _shipping_fee_for(district: str) -> Decimal:

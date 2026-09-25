@@ -9,6 +9,7 @@ from apps.catalog.admin import generate_sku
 from apps.catalog.models import ProductVariant
 from apps.catalog.tests.factories import (
     ProductFactory,
+    ProductImageFactory,
     ProductVariantFactory,
     ShadeFactory,
     SizeFactory,
@@ -233,3 +234,57 @@ def test_generating_with_no_shade_creates_shadeless_variants(admin_client):
         "ROSE-WATER-TONER-100-ML",
         "ROSE-WATER-TONER-200-ML",
     }
+
+
+def _act(admin_client, action, products):
+    return admin_client.post(
+        reverse("admin:catalog_product_changelist"),
+        {"action": action, ACTION_CHECKBOX_NAME: [str(product.pk) for product in products]},
+        follow=True,
+    )
+
+
+def test_publish_action_publishes_only_products_with_variants(admin_client):
+    ready = ProductVariantFactory.create(product__is_published=False).product
+    empty = ProductFactory.create(is_published=False)
+
+    response = _act(admin_client, "publish", [ready, empty])
+
+    ready.refresh_from_db()
+    empty.refresh_from_db()
+    assert (ready.is_published, empty.is_published) == (True, False)
+    messages = [str(message) for message in response.context["messages"]]
+    assert any("Could not publish" in message for message in messages)
+
+
+def test_unpublish_action(admin_client):
+    product = ProductVariantFactory.create(product__is_published=True).product
+
+    _act(admin_client, "unpublish", [product])
+
+    product.refresh_from_db()
+    assert product.is_published is False
+
+
+def test_is_published_is_not_a_form_field(admin_client):
+    product = ProductFactory.create()
+
+    response = admin_client.get(reverse("admin:catalog_product_change", args=[product.pk]))
+
+    assert b'name="is_published"' not in response.content
+
+
+def test_make_primary_action_demotes_the_old_primary(admin_client):
+    product = ProductFactory.create()
+    old = ProductImageFactory.create(product=product, is_primary=True)
+    new = ProductImageFactory.create(product=product, is_primary=False)
+
+    admin_client.post(
+        reverse("admin:catalog_productimage_changelist"),
+        {"action": "make_primary", ACTION_CHECKBOX_NAME: [str(new.pk)]},
+        follow=True,
+    )
+
+    old.refresh_from_db()
+    new.refresh_from_db()
+    assert (old.is_primary, new.is_primary) == (False, True)

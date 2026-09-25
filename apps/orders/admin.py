@@ -9,8 +9,8 @@ from apps.orders.emails import send_order_confirmation, send_order_shipped
 from apps.orders.models import Order, OrderItem
 from apps.orders.services import (
     cancel_order,
+    confirm_order,
     mark_order_delivered,
-    mark_order_paid,
     mark_order_shipped,
 )
 
@@ -45,7 +45,7 @@ class OrderAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptab
     ordering = ("-created_at",)
     search_fields = ("order_number", "email", "phone", "full_name")
     actions = (
-        "mark_paid",
+        "confirm",
         "mark_shipped",
         "mark_delivered",
         "cancel",
@@ -111,9 +111,9 @@ class OrderAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptab
                 request, f"Could not {verb.lower()} {'; '.join(failed)}.", messages.WARNING
             )
 
-    @admin.action(description="Mark selected orders as paid")
-    def mark_paid(self, request: HttpRequest, queryset: QuerySet[Order]) -> None:
-        self._run(request, queryset, mark_order_paid, "Marked paid")
+    @admin.action(description="Mark selected orders as confirmed")
+    def confirm(self, request: HttpRequest, queryset: QuerySet[Order]) -> None:
+        self._run(request, queryset, confirm_order, "Confirmed")
 
     @admin.action(description="Mark selected orders as shipped")
     def mark_shipped(self, request: HttpRequest, queryset: QuerySet[Order]) -> None:

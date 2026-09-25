@@ -11,8 +11,8 @@ from django.urls import reverse
 from apps.catalog.tests.factories import ProductFactory, ProductVariantFactory
 from apps.orders.constants import OrderStatus, PaymentMethod
 from apps.orders.services import (
+    confirm_order,
     mark_order_delivered,
-    mark_order_paid,
     mark_order_shipped,
     place_order,
 )
@@ -137,7 +137,7 @@ def test_a_multi_unit_line_says_the_price_is_per_unit(django_capture_on_commit_c
 
 
 def test_the_shipped_email_parts_agree_about_prices(django_capture_on_commit_callbacks):
-    order = OrderFactory.create(status=OrderStatus.PAID)
+    order = OrderFactory.create(status=OrderStatus.CONFIRMED)
     OrderItemFactory.create(order=order, unit_price=Decimal("1234.00"))
 
     with django_capture_on_commit_callbacks(execute=True):
@@ -155,7 +155,7 @@ def test_the_shipped_email_parts_agree_about_prices(django_capture_on_commit_cal
 def test_shipped_email_is_sent_by_the_service_not_the_admin(
     django_capture_on_commit_callbacks,
 ):
-    order = OrderFactory.create(status=OrderStatus.PAID)
+    order = OrderFactory.create(status=OrderStatus.CONFIRMED)
     OrderItemFactory.create(order=order)
 
     with django_capture_on_commit_callbacks(execute=True):
@@ -171,12 +171,12 @@ def test_no_email_is_sent_for_the_other_transitions(django_capture_on_commit_cal
     order = OrderFactory.create(status=OrderStatus.PENDING)
 
     with django_capture_on_commit_callbacks(execute=True):
-        mark_order_paid(order=order)
+        confirm_order(order=order)
     with django_capture_on_commit_callbacks(execute=True):
         mark_order_shipped(order=order)
         mark_order_delivered(order=order)
 
-    # Only shipping notifies. Paid and delivered are not customer-facing events.
+    # Only shipping notifies. Confirmed and delivered are not customer-facing events.
     assert len(mail.outbox) == 1
 
 

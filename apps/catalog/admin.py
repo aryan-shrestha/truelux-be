@@ -15,7 +15,8 @@ from apps.catalog.models import (
     Shade,
     Size,
 )
-from apps.catalog.services import set_variant_stock
+from apps.catalog.services import set_product_published, set_variant_stock, update_product_image
+from apps.core.exceptions import DomainError
 
 # Generated from the product, size and shade slugs, so it is unique whenever the
 # product slug fits. A truncated slug can collide with another product's; the
@@ -99,7 +100,10 @@ class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscript
     ordering = ("sort_order", "-created_at")
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name", "slug")
-    actions = ("generate_variants",)
+    # Publishing has a rule (a product needs a variant), so it is an action on the
+    # service rather than a form field (ADR 0002).
+    readonly_fields = ("is_published",)
+    actions = ("generate_variants", "publish", "unpublish")
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[Product]:
         products: QuerySet[Product] = super().get_queryset(request)
@@ -110,6 +114,33 @@ class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscript
     @admin.display(description="Stock", ordering="total_stock")
     def total_stock(self, product: Product) -> int:
         return getattr(product, "total_stock", None) or 0
+
+    def _set_published(
+        self, request: HttpRequest, products: QuerySet[Product], *, is_published: bool
+    ) -> None:
+        done: list[str] = []
+        failed: list[str] = []
+        for product in products:
+            try:
+                set_product_published(product=product, is_published=is_published)
+            except DomainError as exc:
+                failed.append(f"{product.name} ({exc.message})")
+            else:
+                done.append(product.name)
+
+        verb = "Published" if is_published else "Unpublished"
+        if done:
+            self.message_user(request, f"{verb} {len(done)}: {', '.join(done)}.", messages.SUCCESS)
+        if failed:
+            self.message_user(request, f"Could not publish {'; '.join(failed)}.", messages.WARNING)
+
+    @admin.action(description="Publish the selected products")
+    def publish(self, request: HttpRequest, queryset: QuerySet[Product]) -> None:
+        self._set_published(request, queryset, is_published=True)
+
+    @admin.action(description="Unpublish the selected products")
+    def unpublish(self, request: HttpRequest, queryset: QuerySet[Product]) -> None:
+        self._set_published(request, queryset, is_published=False)
 
     @admin.action(description="Generate variants for the selected products")
     def generate_variants(
@@ -224,7 +255,16 @@ class ProductImageAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subs
     list_filter = ("is_primary",)
     ordering = ("product__name", "sort_order")
     search_fields = ("product__name", "alt_text")
+    # Promotion clears the old primary in one transaction, which a form save cannot do.
+    readonly_fields = ("is_primary",)
+    actions = ("make_primary",)
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[ProductImage]:
         images: QuerySet[ProductImage] = super().get_queryset(request)
         return images.select_related("product")
+
+    @admin.action(description="Make the selected image its product's primary")
+    def make_primary(self, request: HttpRequest, queryset: QuerySet[ProductImage]) -> None:
+        for image in queryset:
+            update_product_image(image=image, fields={}, is_primary=True)
+        self.message_user(request, f"Promoted {queryset.count()} images.", messages.SUCCESS)

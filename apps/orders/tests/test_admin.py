@@ -36,8 +36,8 @@ def test_status_is_not_an_editable_form_field():
     assert "status" in OrderAdmin.readonly_fields
 
 
-def test_mark_shipped_action_moves_a_paid_order(admin_client):
-    order = OrderFactory.create(status=OrderStatus.PAID)
+def test_mark_shipped_action_moves_a_confirmed_order(admin_client):
+    order = OrderFactory.create(status=OrderStatus.CONFIRMED)
 
     _act(admin_client, "mark_shipped", [order])
 
@@ -45,10 +45,10 @@ def test_mark_shipped_action_moves_a_paid_order(admin_client):
     assert order.status == OrderStatus.SHIPPED
 
 
-def test_mark_paid_and_delivered_actions_move_an_order_along(admin_client):
+def test_confirm_and_delivered_actions_move_an_order_along(admin_client):
     order = OrderFactory.create(status=OrderStatus.PENDING)
 
-    _act(admin_client, "mark_paid", [order])
+    _act(admin_client, "confirm", [order])
     _act(admin_client, "mark_shipped", [order])
     _act(admin_client, "mark_delivered", [order])
 
@@ -70,7 +70,7 @@ def test_cancel_action_restores_variant_stock(admin_client):
 
 
 def test_action_reports_partial_failure_without_raising(admin_client):
-    movable = OrderFactory.create(status=OrderStatus.PAID)
+    movable = OrderFactory.create(status=OrderStatus.CONFIRMED)
     stuck = OrderFactory.create(status=OrderStatus.PENDING)
 
     response = _act(admin_client, "mark_shipped", [movable, stuck])

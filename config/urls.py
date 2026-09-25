@@ -12,6 +12,7 @@ from drf_spectacular.views import (
 # so route names are namespaced: reverse("v1:product-list").
 api_v1_patterns: list[URLPattern | URLResolver] = [
     path("", include("apps.users.urls")),
+    path("admin/", include("apps.backoffice.urls")),
     path("", include("apps.catalog.urls")),
     path("", include("apps.orders.urls")),
 ]

@@ -9,3 +9,8 @@ class VariantUnavailable(DomainError):
 class InsufficientStock(DomainError):
     code = "insufficient_stock"
     message = "Not enough stock to fulfil this order."
+
+
+class ProductHasNoVariants(DomainError):
+    code = "product_has_no_variants"
+    message = "A product needs at least one variant before it can be published."

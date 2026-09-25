@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -135,3 +137,11 @@ def test_seeded_products_cannot_be_flushed_while_orders_reference_them(seeded):
     # foreign key; with it, it names the command that releases them.
     with pytest.raises(CommandError, match="seed_orders --flush"):
         call_command("seed_demo", "--flush")
+
+
+@pytest.mark.django_db
+def test_seeded_orders_span_the_dashboard_window(seeded):
+    dates = {order.created_at.date() for order in _seeded_orders()}
+
+    assert len(dates) > 10
+    assert max(dates) - min(dates) < timedelta(days=30)

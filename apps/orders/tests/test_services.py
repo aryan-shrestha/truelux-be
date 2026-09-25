@@ -14,9 +14,9 @@ from apps.orders.exceptions import (
 )
 from apps.orders.services import (
     cancel_order,
+    confirm_order,
     generate_order_number,
     mark_order_delivered,
-    mark_order_paid,
     mark_order_shipped,
 )
 from apps.orders.tests.factories import OrderFactory, OrderItemFactory
@@ -43,17 +43,17 @@ def test_order_numbers_are_unique_under_concurrency():
     assert len(set(numbers)) == 8
 
 
-def test_mark_paid_from_pending_succeeds():
+def test_confirm_from_pending_succeeds():
     order = OrderFactory.create(status=OrderStatus.PENDING)
 
-    mark_order_paid(order=order)
+    confirm_order(order=order)
 
     order.refresh_from_db()
-    assert order.status == OrderStatus.PAID
+    assert order.status == OrderStatus.CONFIRMED
 
 
-def test_mark_shipped_from_paid_succeeds():
-    order = OrderFactory.create(status=OrderStatus.PAID)
+def test_mark_shipped_from_confirmed_succeeds():
+    order = OrderFactory.create(status=OrderStatus.CONFIRMED)
 
     mark_order_shipped(order=order)
 
@@ -73,12 +73,12 @@ def test_mark_delivered_from_shipped_succeeds():
 @pytest.mark.parametrize(
     ("transition", "status"),
     [
-        (mark_order_paid, OrderStatus.SHIPPED),
-        (mark_order_paid, OrderStatus.CANCELLED),
+        (confirm_order, OrderStatus.SHIPPED),
+        (confirm_order, OrderStatus.CANCELLED),
         (mark_order_shipped, OrderStatus.PENDING),
         (mark_order_shipped, OrderStatus.DELIVERED),
         (mark_order_delivered, OrderStatus.PENDING),
-        (mark_order_delivered, OrderStatus.PAID),
+        (mark_order_delivered, OrderStatus.CONFIRMED),
     ],
 )
 def test_an_illegal_transition_raises_and_leaves_the_status_alone(transition, status):
@@ -91,7 +91,7 @@ def test_an_illegal_transition_raises_and_leaves_the_status_alone(transition, st
     assert order.status == status
 
 
-@pytest.mark.parametrize("status", [OrderStatus.PENDING, OrderStatus.PAID])
+@pytest.mark.parametrize("status", [OrderStatus.PENDING, OrderStatus.CONFIRMED])
 def test_cancelling_restores_stock(status):
     variant = ProductVariantFactory.create(stock_quantity=7)
     order = OrderFactory.create(status=status)

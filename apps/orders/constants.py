@@ -8,13 +8,22 @@ ORDER_NUMBER_DIGITS = 6
 
 
 class OrderStatus(models.TextChoices):
-    # `pending` means placed and awaiting payment. Per ADR 0004 it holds stock, and
-    # nothing releases that stock until a human cancels the order.
+    # `pending` is placed but not yet confirmed by phone (ADR 0011). Per ADR 0004 it
+    # holds stock, and nothing releases that stock until a human cancels the order.
     PENDING = "pending", "Pending"
-    PAID = "paid", "Paid"
+    CONFIRMED = "confirmed", "Confirmed"
     SHIPPED = "shipped", "Shipped"
     DELIVERED = "delivered", "Delivered"
     CANCELLED = "cancelled", "Cancelled"
+
+
+ALLOWED_TRANSITIONS: dict[str, tuple[str, ...]] = {
+    OrderStatus.PENDING: (OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+    OrderStatus.CONFIRMED: (OrderStatus.SHIPPED, OrderStatus.CANCELLED),
+    OrderStatus.SHIPPED: (OrderStatus.DELIVERED,),
+    OrderStatus.DELIVERED: (),
+    OrderStatus.CANCELLED: (),
+}
 
 
 class PaymentMethod(models.TextChoices):

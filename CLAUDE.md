@@ -128,9 +128,11 @@ apps/
         exception handling
         health
 
+    users/
     catalog/
     orders/
     payments/
+    backoffice/
         models
         serializers
         views
@@ -143,13 +145,15 @@ apps/
         tests
 ```
 
-The five apps above are the complete set for Phase 1. `catalog` owns categories,
-products, variants, and images; `orders` owns orders and their items; `payments`
-owns payment records and the gateway client. Do not add a sixth app without an ADR.
+These five apps plus `core` are the complete set. `users` owns staff accounts and
+the JWT endpoints; `catalog` owns brands, categories, sizes, shades, products,
+variants and images; `orders` owns orders and their items; `payments` owns the
+cash-on-delivery records; `backoffice` is the staff admin API and owns no models
+(ADR 0013). Do not add another app without an ADR.
 
-`admin.py` is a first-class module here, not an afterthought: in Phase 1 the Django
-admin is the merchant's entire back-office. See `docs/decisions/` for the rule on
-admin writes and the service layer.
+The staff back-office is the TrueLux admin app over `/api/v1/admin/`; the Django
+admin at `/django-admin/` remains for superusers. Both write through the same
+services (ADR 0002).
 
 ### Layer boundaries
 

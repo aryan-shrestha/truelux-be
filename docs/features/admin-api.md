@@ -1,6 +1,6 @@
 # Admin API
 
-Status: Planned
+Status: Implemented
 
 Last updated: 2026-09-25
 
@@ -69,6 +69,88 @@ What is explicitly outside the scope?
 `pending` and `confirmed`. [ADR 0011](../decisions/0011-cash-on-delivery-only.md)
 renames `paid` to `confirmed`: under COD, the merchant confirms the order by phone,
 and cash is collected at delivery. Cancellation restores stock (ADR 0004, unchanged).
+
+---
+
+## Implemented
+
+- `apps/backoffice/` (no models): `views.py`, `serializers.py`, `selectors.py`,
+  `filters.py`, `constants.py`, `urls.py`, mounted at `/api/v1/admin/` in
+  `config/urls.py` and registered in `INSTALLED_APPS`.
+- `StaffAPIView` is the single policy every admin view inherits:
+  `JWTAuthentication` only, `IsAuthenticated` + `IsAdminUser`, `ScopedRateThrottle`
+  with scope `admin` (`DJANGO_THROTTLE_ADMIN`). A test walks every route in
+  `apps/backoffice/urls.py` and fails if a view does not inherit it.
+- `apps/catalog/services/` is now a package (`stock.py`, `products.py`,
+  `taxonomy.py`, re-exported from `__init__.py`): `create_product`, `update_product`,
+  `set_product_published`, `delete_product`, `create_variant`, `update_variant`
+  (stock through `set_variant_stock`), `delete_variant`, `add_product_image`,
+  `update_product_image`, `delete_product_image`, and `create_taxonomy_entry`,
+  `update_taxonomy_entry`, `delete_taxonomy_entry` for brands, categories, shades and
+  sizes. Omitted slugs are derived from the name and suffixed `-2`, `-3`… until free.
+- `apps/orders/`: `OrderStatus.CONFIRMED` replaces `PAID`; `ALLOWED_TRANSITIONS` in
+  `constants.py`; `confirm_order` replaces `mark_order_paid`; `transition_order`
+  dispatches to `confirm_order`, `mark_order_shipped`, `mark_order_delivered` or
+  `cancel_order`, so each keeps its own error.
+- The Django admin shares the services: "Publish" / "Unpublish" actions call
+  `set_product_published` (`is_published` is read-only on the form), and
+  `ProductImageAdmin`'s "Make primary" action calls `update_product_image`
+  (`is_primary` is read-only there). Orders get "Mark selected orders as confirmed".
+- The dashboard is one selector, `get_dashboard`, in `Asia/Kathmandu` days.
+
+---
+
+## Remaining
+
+None.
+
+---
+
+## Decisions
+
+### Decision: publishing and image promotion are admin actions
+
+**Decision**
+
+In the Django admin, `Product.is_published` and `ProductImage.is_primary` are
+read-only fields changed by actions that call the catalogue services.
+
+**Reason**
+
+ADR 0002: a field whose change has a consequence is an action. Django 5's model
+forms also validate the one-primary constraint before `save_model` runs, so a form
+could never promote an image.
+
+### Decision: FK ids are validated by the serializer
+
+**Decision**
+
+`brand_id`, `category_id`, `size_id`, `shade_id` and `parent_id` are
+`PrimaryKeyRelatedField`s; services receive model instances.
+
+**Reason**
+
+An unknown id is a `400 validation_error` naming the field, rather than a database
+foreign-key failure reported as `409 conflict`.
+
+---
+
+## Gotchas
+
+- Order numbers are `TL-<year>-<6 digits>` (for example `TL-2026-000123`), from the
+  existing sequence; the `TL-000123` in the examples below is illustrative.
+- `item_count` is the number of units (sum of line quantities), not of lines.
+- `created_after` / `created_before` compare the UTC date of `created_at`.
+- Product `search` matches the name or any variant SKU (with `.distinct()`).
+- Unique names and slugs, and a second shadeless variant of one size, are enforced
+  by the database: `409 conflict`.
+- A category cycle is a Django `ValidationError` from the service, which the handler
+  returns as `400 validation_error` with `details.parent_id`.
+- Deleting a product, variant or taxonomy row relies on `PROTECT`: `ProtectedError`
+  subclasses `IntegrityError`, so the handler already answers `409 conflict`.
+- Deleting an image deletes the row only; the stored asset is left behind.
+- The staff app must send `multipart/form-data` for image uploads and brand logos;
+  every other write is JSON.
 
 ---
 
@@ -205,21 +287,28 @@ tokens get `403`.
 
 ## Tests
 
-To be written, in `apps/backoffice/tests/`:
+`apps/backoffice/tests/`:
 
-- Every route: anonymous is 401, a non-staff token is 403.
-- Product CRUD round trip; slug auto-generation and uniqueness; deleting an ordered
-  product is 409; publishing with no variants is 422.
-- Variant stock edit goes through `set_variant_stock` (mocked assertion) and rejects
-  negative values.
-- Image upload uses file storage in tests; promoting a primary clears the old one;
-  a file over 5 MB or of the wrong type is 400.
-- Taxonomy CRUD; deleting a referenced shade or brand is 409; a category cycle is 400.
-- Order list filters; each transition path; invalid transitions return the
-  documented codes; cancel restores stock.
-- The dashboard's revenue excludes cancelled orders; `sales_by_day` has 30
-  zero-filled entries; low stock is ordered and capped.
-- Query-count assertions on product and order lists.
+- `test_permissions.py` — every route and method: anonymous is 401, a non-staff
+  token is 403; every route inherits `StaffAPIView`; a Django admin session is 401.
+- `test_products.py` — CRUD round trip; slug derivation and uniqueness; unknown
+  brand is 400; publishing without variants is 422 on create and update; deleting
+  an ordered product or variant is 409; list shape, filters and a constant three
+  queries; variant stock edits call `set_variant_stock` (mocked) and reject
+  negatives; image upload, primary promotion, wrong type and >5 MB are 400.
+- `test_taxonomy.py` — brand list includes inactive brands with counts; logo upload
+  and slug derivation; shade hex validation; deleting a referenced brand, shade,
+  size or category is 409; duplicate names are 409; category cycles are 400.
+- `test_orders.py` — list shape, status/search/date filters, constant two queries;
+  detail with `allowed_transitions` and `line_total`; each transition path; the
+  documented 422 codes; cancel restores stock; `ALLOWED_TRANSITIONS` agrees with the
+  services for every pair.
+- `test_dashboard.py` — revenue excludes cancelled orders and uses the Kathmandu
+  day; `sales_by_day` has 30 zero-filled days; every status is counted; five recent
+  orders; low stock is lowest first and capped at ten.
+
+`apps/catalog/tests/test_admin.py` covers the publish, unpublish and make-primary
+admin actions.
 
 ---
 
@@ -229,10 +318,13 @@ To be written, in `apps/backoffice/tests/`:
 apps/backoffice/
 ├── apps.py
 ├── constants.py
+├── filters.py
 ├── selectors.py
 ├── serializers.py
 ├── views.py
 ├── urls.py
 └── tests/
-apps/catalog/services.py   # new product, variant and image writes
+apps/catalog/services/     # products.py, taxonomy.py, stock.py
+apps/orders/constants.py   # ALLOWED_TRANSITIONS
+apps/orders/services.py    # confirm_order, transition_order
 ```
