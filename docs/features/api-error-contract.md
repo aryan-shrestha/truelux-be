@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-21
+Last updated: 2026-09-25
 
 ---
 
@@ -115,11 +115,11 @@ and raised by `apps.catalog.services`, now reach a client as 422s through
 `POST /api/v1/checkout/`, and `apps/orders/tests/test_checkout.py` asserts both
 codes over HTTP. The 422 row is no longer exercised only from unit tests.
 
-One note that is not a gap: the 429 row holds even without Redis, because
-`apps/core/throttling.py` falls back to per-process counting rather than letting
-the request through, so the effective limit multiplies by the worker count instead
-of disappearing. That is a throttling decision, recorded in `staff-identity.md`,
-not an error-contract one.
+The 429 row is DRF's own throttles over the database cache (ADR 0014). Later
+features added codes through `DomainError` subclasses only: `product_has_no_variants`
+(admin API), `invalid_refresh_token` (logout), and the order transition codes, now
+reachable over `/api/v1/admin/orders/{id}/transition/`. A staff login failure is
+`401 authentication_failed`, whatever the reason.
 
 ---
 

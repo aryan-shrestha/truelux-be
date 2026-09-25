@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-23
+Last updated: 2026-09-25
 
 ---
 
@@ -20,8 +20,7 @@ What is included in this implementation?
 - A domain-agnostic `send_email` in `apps/core/email.py`
 - Order confirmation and order shipped emails, with HTML and plain-text bodies
 - `transaction.on_commit` registration at both trigger points
-- `STOREFRONT_URL`, which the confirmation link needs and which was named for
-  Khalti alone before this
+- `STOREFRONT_URL`, which the confirmation link needs
 - Resend actions in the admin, which are the only recovery mechanism
 
 What is explicitly outside the scope?
@@ -98,7 +97,12 @@ The intended implementation:
 - `transaction.on_commit` inside `place_order` and inside `_transition` when the
   new status is `shipped` — in the services, not their callers
 - Two resend actions on `OrderAdmin`, which are the only recovery a failed send has
-- `STOREFRONT_URL`, renamed from `KHALTI_WEBSITE_URL`. See Decisions
+- `STOREFRONT_URL`, the storefront root the link is built from
+- TrueLux branding: a "TrueLux" header on the HTML base, a sign-off on the text
+  bodies, and subjects "TrueLux order <number> received" and "Your TrueLux order
+  <number> is on its way". The confirmation says the shop will call to confirm and
+  that the customer pays the courier in cash (ADR 0011). Line items show the shade
+  only when the variant has one.
 - `apps/core/tests/test_email.py` and `apps/orders/tests/test_emails.py` — 23 tests
 
 ---
@@ -112,8 +116,7 @@ The intended implementation:
 - **No email has been seen rendered by a real client.** The templates are checked
   by tests and readable in the console backend, but nothing has looked at them in
   Gmail or Outlook, where support for even inline CSS varies.
-- The styling is deliberately plain — one table, inline styles, no images, no
-  brand treatment, because none has been specified.
+- The styling is deliberately plain — one table, inline styles, no images.
 
 ---
 
@@ -136,32 +139,6 @@ in `core` would violate that, and `core` would then need to know what an `Order`
 Any future email — a password reset, a restock notice — reuses the mechanism
 without touching orders. If an outbox is ever added, it goes in `core` too, and
 `apps/notifications` becomes a real app only when it owns a table.
-
-### Decision: the storefront root is `STOREFRONT_URL`, not a payment setting
-
-**Decision**
-
-`KHALTI_WEBSITE_URL` is renamed `STOREFRONT_URL`. Three things read it: Khalti
-receives it as `website_url`, the payment return redirects the customer to
-`{STOREFRONT_URL}/orders/<access_token>`, and this feature's confirmation email
-links to the same page.
-
-**Reason**
-
-It was always the storefront root. `payments.md` (#8) named it after its first
-reader and justified the double duty rather than add a second setting holding the
-same value — which was right about the value and wrong about the name. A third
-reader made that obvious: `apps/orders/emails.py` reading a Khalti-named setting
-reads as a bug to everyone who meets it.
-
-**Consequence**
-
-A breaking environment change, but not a silent one: ADR 0008 makes a `.env` still
-holding the old name fail at startup naming `STOREFRONT_URL` as missing. Nothing is
-deployed, so the cost is one line in one local file.
-
-The storefront now owes exactly one page to two systems — the payment return and
-the email both land on `/orders/<access_token>` — rather than one each.
 
 ### Decision: the send is registered inside the service, not called from the view
 
@@ -230,7 +207,7 @@ pass for the wrong reason.
   only inside the URL. `test_the_access_token_appears_only_inside_the_link` counts
   it: bare in the body, it is something a customer might paste into a support chat
   without knowing what it is.
-- Only the **shipped** transition sends. Paid and delivered are not customer-facing
+- Only the **shipped** transition sends. Confirmed and delivered are not customer-facing
   events, and `test_no_email_is_sent_for_the_other_transitions` says so, so adding
   one later is a deliberate change rather than an accident.
 
@@ -336,7 +313,7 @@ apps/payments/views.py                the rename
 
 `test_confirmation_is_not_sent_when_transaction_rolls_back` is the test that proves
 the decision holds. If it starts failing, someone has moved the send inside the
-transaction and a paid order can now be destroyed by an SMTP timeout.
+transaction and a placed order can now be destroyed by an SMTP timeout.
 
 The accepted failure mode — an order with no confirmation email, no retry, and
 therefore a customer with no access token — is the most likely source of real

@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-20
+Last updated: 2026-09-25
 
 ---
 
@@ -34,8 +34,8 @@ What is explicitly outside the scope?
 - The `ProductImage` model, which belongs to `product-catalog.md`
 - Image transformation, resizing, or responsive variants
 - Signed or expiring delivery URLs
-- Any user-facing upload endpoint. In Phase 1 the only uploads are product images
-  entering through the Django admin
+- Any customer-facing upload endpoint. Only staff upload: product images and brand
+  logos, through the admin API or the Django admin
 - Cleaning up orphaned assets
 
 ---
@@ -94,7 +94,12 @@ Delivered by `staff-identity` rather than by this feature, but complete and veri
 - `config/settings/local.py` overrides it to `FileSystemStorage` too, so local
   development needs no Cloudinary credentials
 - `.env.example` lists every variable `base.py` reads
-- `DEFAULT_PARSER_CLASSES` remains JSON-only; no multipart parser was added
+- `DEFAULT_PARSER_CLASSES` remains JSON-only. Multipart parsing is enabled per view
+  on the admin API's image and brand endpoints only (`admin-api.md`), which validate
+  JPEG/PNG/WebP up to 5 MB. `add_product_image` uploads before it opens a
+  transaction; admin logo uploads save inside the service's plain `save()`.
+- `seed_demo` generates its images and logos in memory with Pillow and saves them
+  through the default storage.
 
 Completed by this feature's own closing pass:
 
@@ -136,23 +141,17 @@ and uploading an image.
 
 ## Decisions
 
-### Decision: no user-facing upload endpoint, so no multipart parser
+### Decision: multipart parsing only where staff upload
 
 **Decision**
 
-`DEFAULT_PARSER_CLASSES` stays `JSONParser` only. `MultiPartParser` is not added.
+`DEFAULT_PARSER_CLASSES` stays `JSONParser` only. `MultiPartParser` is set on
+`ProductImageCreateView` and the brand list/detail views of the admin API.
 
 **Reason**
 
-The only uploads in Phase 1 are product images created by staff through the Django
-admin, which uses Django's own form handling and not DRF's parsers. Adding a
-multipart parser would open an upload surface that nothing uses.
-
-**Consequence**
-
-`architecture.md`'s upload claim has been narrowed to say this explicitly, so a
-future engineer does not add multipart parsing "for completeness". A Phase 2
-customer avatar or review photo would revisit this.
+Those are the only upload surfaces, and they are staff-only; every other route
+stays JSON.
 
 ### Decision: tests use local filesystem storage, not Cloudinary
 

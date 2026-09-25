@@ -2,160 +2,91 @@
 
 Current feature inventory.
 
-Phase 1 turns a social-media-only clothing brand into a store. Checkout is
-guest-only, payment is cash on delivery or Khalti, and the Django admin is the
-merchant's entire back-office.
+TrueLux is a multi-brand cosmetics store. The API serves a public Next.js storefront
+(guest checkout, cash on delivery only) and a Next.js admin app for staff
+(`/api/v1/admin/`, JWT held server-side). The Django admin at `/django-admin/`
+remains for superusers. The codebase was forked from a clothing store; Khalti and
+Redis were removed at the fork.
 
-| #   | Feature             | Status  | Documentation                     | Depends on | Last updated |
-| --- | ------------------- | ------- | --------------------------------- | ---------- | ------------ |
-| 1   | staff-identity      | Implemented | `features/staff-identity.md`  | —          | 2026-09-23   |
-| 2   | api-error-contract  | Implemented | `features/api-error-contract.md` | 1      | 2026-09-21   |
-| 3   | media-storage       | Implemented | `features/media-storage.md`   | —          | 2026-09-20   |
-| 4   | product-catalog     | Implemented | `features/product-catalog.md` | 2, 3       | 2026-09-20   |
-| 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md` | 4      | 2026-09-21   |
-| 6   | orders              | Implemented | `features/orders.md`          | 2, 4       | 2026-09-21   |
-| 7   | checkout            | Implemented | `features/checkout.md`        | 6          | 2026-09-21   |
-| 8   | payments            | Implemented | `features/payments.md`        | 7          | 2026-09-21   |
-| 9   | transactional-email | Implemented | `features/transactional-email.md` | 6, 8   | 2026-09-23   |
-| 10  | merchant-admin      | Implemented | `features/merchant-admin.md`  | 4, 6, 8    | 2026-09-22   |
-| 11  | demo-seed           | Implemented | `features/demo-seed.md`       | 4, 6, 8    | 2026-09-24   |
-| 12  | deployment          | Implemented | `features/deployment.md`      | —          | 2026-09-24   |
+| #   | Feature             | Status      | Documentation                     | Depends on | Last updated |
+| --- | ------------------- | ----------- | --------------------------------- | ---------- | ------------ |
+| 1   | staff-identity      | Implemented | `features/staff-identity.md`      | —          | 2026-09-25   |
+| 2   | api-error-contract  | Implemented | `features/api-error-contract.md`  | 1          | 2026-09-25   |
+| 3   | media-storage       | Implemented | `features/media-storage.md`       | —          | 2026-09-25   |
+| 4   | product-catalog     | Implemented | `features/product-catalog.md`     | 2, 3       | 2026-09-25   |
+| 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-25   |
+| 6   | orders              | Implemented | `features/orders.md`              | 2, 4       | 2026-09-25   |
+| 7   | checkout            | Implemented | `features/checkout.md`            | 6          | 2026-09-25   |
+| 8   | payments            | Implemented | `features/payments.md`            | 7          | 2026-09-25   |
+| 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-25   |
+| 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
+| 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16 | 2026-09-25  |
+| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-25   |
+| 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-25   |
+| 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-25   |
+| 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-25   |
+| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15 | 2026-09-25 |
 
 `Depends on` refers to the `#` column of this table.
 
-## Implementation order
+## What changed at the fork
 
-Implement in table order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10.
+- **Brands** (#13) and **shades** (#14) reshape the catalogue for cosmetics. Every
+  product has a brand; an inactive brand hides its products everywhere, including
+  checkout. A variant's shade is optional, and sizes are volumes or weights.
+- **Cash on delivery only** (ADR 0011). `paid` became `confirmed`: the merchant
+  confirms by phone, and the cash is recorded separately when it is collected.
+- **The database cache replaces Redis** (ADR 0014). Throttle counters live in the
+  `django_cache` table, created by `createcachetable` in the build and in
+  `make migrate`.
+- **Staff sign in over JWT** (#15, ADR 0012), and **the admin API** (#16, ADR 0013)
+  gives the admin app everything the merchant does day to day. Catalogue writes are
+  services shared with the Django admin (ADR 0002).
+- Migrations were regenerated as fresh `0001_initial`s.
 
-`demo-seed` (#11) sits outside that order: it is a development tool, not part of
-the product, and it was added when the storefront repository found that a fresh
-database serves an empty catalogue and nothing can be built against it.
-`deployment` (#12) sits outside it too, for the obvious reason.
+## Contracts with the front-end apps
 
-`staff-identity` is first because nothing else could run until it landed: the
-URLConf imported an `apps/users` API surface that no longer exists, so no server,
-no test and no migration would start. That surface has been removed and the
-project boots.
+- The storefront must serve `/orders/<access_token>`: the confirmation email links
+  there (`STOREFRONT_URL`).
+- The admin app obtains tokens from `/api/v1/auth/token/`, keeps them server-side,
+  and sends `multipart/form-data` for image and logo uploads. Every other write is
+  JSON. The OpenAPI schema is served at `/api/schema/` (Swagger at
+  `/api/schema/swagger-ui/`); the repository does not keep a generated copy.
 
-`api-error-contract` carried the published error-code map and its tests, and stayed
-In progress until a real `DomainError` subclass reached a client. `checkout` (#7)
-did that: `VariantUnavailable` and `InsufficientStock`, defined by `product-catalog`
-and raised by `apps.catalog.services`, are now returned as 422s by
-`POST /api/v1/checkout/` and asserted there. It is Implemented.
+## Not done
 
-`catalog-browsing` is the first feature with an HTTP surface, and it found that
-`convention.md`'s "let `DoesNotExist` propagate; the handler returns 404" was not
-true of the handler — an unknown slug would have been a 500. The handler now maps
-`ObjectDoesNotExist`. Every later selector depends on this, `orders` most of all.
-
-**Both payment methods work end to end.** Cash on delivery records what the
-courier will collect; Khalti initiates at checkout, and the return endpoint
-verifies with a server-to-server lookup before anything is fulfilled.
-`docs/integrations/khalti.md` transcribes the upstream contract that was written
-against — read it before changing `apps/payments/client.py`.
-
-**Khalti needs credentials before anything will start.** Under
-[ADR 0008](../decisions/0008-every-environment-variable-is-required.md) every
-environment variable is required in every environment, so a developer needs Khalti
-values in `.env` even to run the catalogue tests — a placeholder key boots, only a
-real one takes a payment. The sandbox path has not been walked end to end; every
-test stubs Khalti at the HTTP boundary.
-
-**The storefront now owes two routes**: `/orders/<access_token>` and
-`/orders/failed?reason=<code>`, which is where the payment return redirects. That
-is a contract between the two repositories and nothing in this one enforces it.
-
-**Every Phase 1 feature is implemented.** A customer can browse the catalogue,
-place an order, pay by cash or Khalti, and receive a confirmation carrying the only
-link back to their purchase. A merchant can run the shop from the Django admin.
-
-One thing is not done, and it is not a feature:
-
-- **No write path has run against real infrastructure.** The Supabase project is
-  migrated and holds the `demo-seed` catalogue — 9 products, 37 variants, 6
-  categories — so the read paths have real data behind them. Nothing else does:
-  `users` has no rows, so **no superuser exists and the admin has never been
-  opened**; `order` and `payment` are empty; the Khalti sandbox path is unwalked;
-  and no email has been seen in a real client. Every claim about a write in these
-  documents rests on the test suite, including every workflow
-  [../handover.md](../handover.md) describes. That Supabase project is shared
-  development, not production — production will be a separate project, so the demo
-  catalogue in it is expected rather than something to clean up.
-
-[../handover.md](../handover.md) is the merchant's document, and the only one
-written for someone who is not an engineer. It carries the three standing duties
-that no automation covers — review pending orders so held stock is released,
-verify stranded payments, and resend failed emails — each a failure mode with no
-automatic recovery and no alert. `merchant-admin.md`, `transactional-email.md`,
-`media-storage.md` and ADR 0004 each link to the section that carries theirs.
-
-`checkout` (#7) creates the order, `payments` (#8) records what is owed on it, and
-`transactional-email` (#9) sends the customer the link that is their only route
-back to it. That link is `{STOREFRONT_URL}/orders/<access_token>` — the same page
-the Khalti return redirects to, so the storefront owes one route, not two.
-
-`api-error-contract` (#2) closes here: `VariantUnavailable` and `InsufficientStock`
-now reach a client as 422s through `POST /api/v1/checkout/`, which is the condition
-it was waiting on.
-
-**`size` and `color` ship empty, and a `ProductVariant` cannot be created until
-both hold rows** — per
-[ADR 0007](../decisions/0007-size-and-colour-are-lookup-tables.md) they are lookup
-tables. `SizeAdmin` and `ColorAdmin` landed with `merchant-admin` (#10), so on a
-fresh production database the merchant's first task is to fill them. The handover
-document says so.
-
-For **development**, `demo-seed` (#11) still fills them along with a demo
-catalogue: `make seed`. It refuses to run outside `DEBUG`. Its reason for existing
-narrowed when #10 landed, from "nothing can populate these" to "give a developer
-something to look at", which is a smaller claim but still a useful one.
-
-**Read `merchant-admin.md` before writing any `admin.py`.** ADR 0002 constrains
-every admin module in the repository. Authoring that document before the code was
-written is why nothing had to be rewritten when the four modules landed.
-
-**The merchant can now run the shop.** Sizes and colours are enterable, variants
-are generated rather than typed, stock is adjustable through a locked service,
-orders move through their lifecycle by action, and both payment recoveries exist.
-What remains shell-only is nothing.
+- **Nothing has been deployed as TrueLux.** Every claim rests on the test suite and
+  a local run.
+- **No email has been seen in a real client**, and no SMTP relay is configured.
+- The standing duties with no automatic recovery (confirming or cancelling pending
+  orders so stock is released, resending failed email) are in
+  [../handover.md](../handover.md).
 
 ## Architectural decisions
 
-Eight decisions in `docs/decisions/` govern this phase. Read the relevant one before
-implementing the feature that depends on it.
+| ADR  | Decision                                        | Governs                               |
+| ---- | ----------------------------------------------- | ------------------------------------- |
+| 0001 | The variant is the stock and SKU unit           | product-catalog, orders, checkout     |
+| 0002 | Admin writes go through the service layer       | merchant-admin, admin-api             |
+| 0003 | Guest checkout, with opaque access tokens       | orders, checkout                      |
+| 0004 | Stock is committed at order placement           | checkout, product-catalog, orders     |
+| 0005 | Khalti lookup is the only verification          | superseded by 0011                    |
+| 0006 | Transactional email sends in-request            | transactional-email, checkout         |
+| 0007 | Size and colour are lookup tables               | product-catalog (colour: see 0010)    |
+| 0008 | Every environment variable is required          | every app; `config/settings`          |
+| 0009 | Brand is a first-class model                    | brands, catalog-browsing              |
+| 0010 | Shade replaces colour, and is optional          | shades-and-sizes, orders              |
+| 0011 | Cash on delivery only                           | payments, orders, checkout            |
+| 0012 | The admin app authenticates with JWT server-side | staff-auth, admin-api                |
+| 0013 | The admin API is its own app                    | admin-api                             |
+| 0014 | The database cache replaces Redis               | deployment, every throttled endpoint  |
 
-| ADR  | Decision                                    | Governs                              |
-| ---- | ------------------------------------------- | ------------------------------------ |
-| 0001 | The variant is the stock and SKU unit       | product-catalog, orders, checkout     |
-| 0002 | Admin writes go through the service layer   | merchant-admin, every `admin.py`      |
-| 0003 | Guest checkout, with opaque access tokens   | orders, checkout, staff-identity      |
-| 0004 | Stock is committed at order placement       | checkout, product-catalog, orders     |
-| 0005 | Khalti lookup is the only verification      | payments                              |
-| 0006 | Transactional email sends in-request        | transactional-email, checkout         |
-| 0007 | Size and colour are lookup tables           | product-catalog, merchant-admin       |
-| 0008 | Every environment variable is required      | every app; `config/settings`          |
+## Deferred
 
-## Integration references
-
-`docs/integrations/` transcribes the published API contracts of external systems,
-so an implementation is written against a fixed document rather than a
-recollection of one. [khalti.md](../integrations/khalti.md) carries Khalti's
-ePayment (KPG-2) documentation — the initiate payload, the callback parameters,
-every lookup status with its HTTP code, and the error bodies. Read it before
-writing the Khalti client for `payments` (#8). ADR 0005 records what this
-repository does about that contract; it is not a substitute for the contract.
-
-## Deferred to Phase 2 and later
-
-Customer accounts and order history, discount codes, wishlist, abandoned-cart
-email, product reviews, returns and refunds in-app, multi-currency, gift cards, a
-custom merchant dashboard, courier tracking, faceted search, and restock
-notifications.
-
-Three Phase 1 decisions each accept a failure mode with no automatic recovery —
-stale held stock (ADR 0004), stranded payments (ADR 0005), and unsent email
-(ADR 0006). All three are resolved by the same mechanism: an external scheduler
-calling an authenticated sweep endpoint. When that is built, build it once.
+Customer accounts and order history, online payment, discount codes, wishlist,
+reviews, returns and refunds, staff roles, bulk import/export, courier tracking,
+restock notifications, and a scheduler for sweeps (stale pending orders, unsent
+email).
 
 ## Status definitions
 
