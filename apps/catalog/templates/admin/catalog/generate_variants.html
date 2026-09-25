@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h1>Generate variants</h1>
+
+  <p>
+    Creating the missing size and colour combinations for
+    {% for product in products %}<strong>{{ product }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+    Combinations that already exist are left alone, and SKUs are generated.
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    {% for value in selected %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ value }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="generate_variants">
+
+    {{ form.as_p }}
+
+    <input type="submit" name="apply" value="Generate">
+    <a href="." class="button cancel-link">Cancel</a>
+  </form>
+{% endblock %}

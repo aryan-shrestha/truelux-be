@@ -1,0 +1,19 @@
+{# Deliberately plain: inline styles only, one table, no external assets. Email #}
+{# clients strip stylesheets, and nobody has specified a brand treatment. #}
+<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:24px;background:#f6f6f6;font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;padding:32px;">
+      <tr>
+        <td>
+          {% block content %}{% endblock %}
+
+          <p style="margin:32px 0 0;font-size:13px;color:#666;">
+            Keep the link above. Under our guest checkout it is the only way back
+            to this order.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

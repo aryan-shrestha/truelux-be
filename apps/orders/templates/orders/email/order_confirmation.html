@@ -1,0 +1,32 @@
+{% extends "orders/email/_base.html" %}
+
+{% block content %}
+  <h1 style="margin:0 0 16px;font-size:20px;">We have your order</h1>
+
+  <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">
+    Hello {{ order.full_name }}, order <strong>{{ order.order_number }}</strong> is
+    with us. Nothing has shipped yet &mdash; we will email you again when it does.
+  </p>
+
+  {% include "orders/email/_items.html" with show_prices=True %}
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+    <tr><td style="padding:2px 0;">Subtotal</td><td style="text-align:right;">Rs. {{ order.subtotal }}</td></tr>
+    <tr><td style="padding:2px 0;">Shipping</td><td style="text-align:right;">Rs. {{ order.shipping_fee }}</td></tr>
+    <tr><td style="padding:8px 0;border-top:1px solid #ddd;"><strong>Total</strong></td><td style="text-align:right;border-top:1px solid #ddd;"><strong>Rs. {{ order.total }}</strong></td></tr>
+  </table>
+
+  <p style="margin:16px 0;font-size:14px;">
+    {% if order.payment_method == "cod" %}
+      You will pay the courier in cash when it arrives.
+    {% else %}
+      Payment was made through Khalti.
+    {% endif %}
+  </p>
+
+  {% include "orders/email/_address.html" %}
+
+  <p style="margin:24px 0 0;">
+    <a href="{{ order_url }}" style="display:inline-block;padding:12px 20px;background:#1a1a1a;color:#ffffff;text-decoration:none;font-size:15px;">View your order</a>
+  </p>
+{% endblock %}

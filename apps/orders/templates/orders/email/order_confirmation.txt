@@ -1,0 +1,23 @@
+{% autoescape off %}{# Plain text: escaping would put &amp; in front of a customer #}
+Hello {{ order.full_name }},
+
+We have your order {{ order.order_number }}. Nothing has shipped yet; we will
+email you again when it does.
+
+{% for item in items %}- {{ item.quantity }} x {{ item.product_name }} ({{ item.variant_size }}, {{ item.variant_color }}) - Rs. {{ item.unit_price }} each
+{% endfor %}
+Subtotal      Rs. {{ order.subtotal }}
+Shipping      Rs. {{ order.shipping_fee }}
+Total         Rs. {{ order.total }}
+
+{% if order.payment_method == "cod" %}You will pay the courier in cash when it arrives.{% else %}Payment was made through Khalti.{% endif %}
+
+Delivering to:
+{{ order.full_name }}
+{{ order.address_line }}
+{{ order.city }}, {{ order.district }}
+{{ order.phone }}
+
+Track this order here, and keep this link -- it is the only way back to it:
+{{ order_url }}
+{% endautoescape %}

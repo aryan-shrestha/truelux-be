@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "backend-patterns": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/backend-patterns/SKILL.md",
+      "computedHash": "45bf0c6abd0549b56142690f49437bc59c7b4f55b62dc7717ef295ec6ed6617f"
+    },
+    "code-reviewer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-reviewer/SKILL.md",
+      "computedHash": "57ab3eba6fa596bc52d73ca7312afc2f389d9622714d25b2ab3d4bbf03dc293a"
+    },
+    "django-patterns": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/django-patterns/SKILL.md",
+      "computedHash": "93fc4501b3dfc6fae1e40dc8b0114681838e308ddb865966bfcd57125df7b2d5"
+    },
+    "python-patterns": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/python-patterns/SKILL.md",
+      "computedHash": "3ce7d51e18d3e2fa79635e569e73a8d269bc484ff1095fae7c414543f023e95e"
+    }
+  }
+}

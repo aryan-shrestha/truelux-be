@@ -1,0 +1,121 @@
+[project]
+name = "clothing-store-backend"
+version = "0.1.0"
+description = "Clothing store backend API (Django 5 + DRF)."
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.1,<6.0",
+    "djangorestframework>=3.15",
+    "djangorestframework-simplejwt>=5.3",
+    "drf-spectacular>=0.27",
+    "django-filter>=24.3",
+    "django-cors-headers>=4.4",
+    "django-environ>=0.11",
+    "psycopg[binary]>=3.2",
+    "redis>=5.0",
+    "gunicorn>=23.0",
+    "structlog>=24.4",
+    "whitenoise>=6.7",
+    "cloudinary>=1.41",
+    "django-cloudinary-storage>=0.3",
+    "pillow>=11.0",
+    # Declared although cloudinary already pulls it in: apps/payments/client.py
+    # imports it directly, and an undeclared dependency breaks the day its only
+    # declaring package drops it. Ships py.typed, so no stub package is needed.
+    "requests>=2.32",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "pytest-cov>=5.0",
+    "factory-boy>=3.3",
+    "freezegun>=1.5",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "django-stubs[compatible-mypy]>=5.1",
+    "djangorestframework-stubs[compatible-mypy]>=3.15",
+    "pre-commit>=4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "DJ", "SIM", "RUF", "S", "BLE"]
+ignore = [
+    "RUF012",  # Django class attrs are conventionally plain mutable containers.
+    # convention.md names exceptions for the condition ("InsufficientStock"), which
+    # deliberately omits the Error suffix N818 wants.
+    "N818",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, and their credentials are literals by necessity.
+"*/tests/*" = ["S101", "S105", "S106"]
+"tests/*" = ["S101", "S105", "S106"]
+"conftest.py" = ["S101"]
+# Split settings compose by wildcard re-export; this is the one place it is allowed.
+# E402 too: test.py must populate os.environ before importing base.py, which
+# reads it at import time.
+"config/settings/*" = ["F403", "F405", "E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+exclude = ['^\.venv/', '/migrations/']
+strict = true
+
+# Tests are relaxed so factories and test helpers need no annotations. factory_boy
+# also types `DjangoModelFactory.__call__` as returning the factory rather than the
+# model, so every attribute read off a built instance looks undefined.
+[[tool.mypy.overrides]]
+module = ["conftest", "tests.*", "apps.*.tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = ["factory.*", "environ.*", "django_filters.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests", "apps"]
+addopts = [
+    "--strict-markers",
+    "--cov=apps",
+    "--cov=config",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",
+]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "config/asgi.py",
+    "config/wsgi.py",
+    "manage.py",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

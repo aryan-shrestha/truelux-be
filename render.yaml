@@ -1,0 +1,142 @@
+# Render Blueprint. Native Python, not Docker: a native build runs with the
+# service's environment variables present, which is what ADR 0008 requires of any
+# process that imports the settings -- `collectstatic` included. Render detects
+# `uv.lock` and uses uv, so this honours CLAUDE.md's "no pip, no requirements.txt"
+# without a workaround, and `.python-version` pins the interpreter.
+#
+# Every key under envVars must exist in .env.example. A name that appears in one
+# and not the other is a deploy that fails at import with ADR 0008's exception.
+
+services:
+  - type: web
+    name: clothing-store-api
+    runtime: python
+    plan: free
+    # Supabase is in ap-northeast-2. Singapore is the nearest of Render's five
+    # regions, and architecture.md already lists the cross-region hop as an
+    # unhedged cost. Render cannot relocate a service afterwards -- changing this
+    # means creating a new one -- so it is the costliest value here to get wrong.
+    region: singapore
+    branch: main
+
+    # Liveness, not readiness. /health/ touches no dependency, deliberately: a
+    # database outage must not make Render recycle containers that are answering
+    # fine. /health/ready/ returns 503 on a Redis blip, which is expected.
+    healthCheckPath: /health/
+
+    # Migrations run here rather than in a preDeployCommand, which the free tier
+    # does not offer. Still once per deploy, so two starting instances cannot race
+    # -- but it runs before the release is known good, so a later failure leaves a
+    # migrated database. Moving this to preDeployCommand is the first thing to do
+    # on upgrading the instance type.
+    #
+    # --database=direct because migrations cannot run over Supabase's pooler.
+    buildCommand: >-
+      uv sync --frozen &&
+      uv run python manage.py migrate --database=direct &&
+      uv run python manage.py collectstatic --noinput
+
+    # $PORT because Render's default is 10000 and it only *usually* detects a
+    # different one; when detection fails the deploy fails.
+    # --timeout 30 because ADR 0005 calls Khalti inside the request and ADR 0006
+    # sends SMTP inside it, each with a 10s timeout of its own, and a Cloudinary
+    # upload is synchronous on top. 30s is the floor here, not headroom.
+    # --workers 2 because the free instance has 512 MB.
+    startCommand: >-
+      uv run gunicorn config.wsgi:application
+      --bind 0.0.0.0:$PORT
+      --workers 2
+      --timeout 30
+      --max-requests 1000
+      --max-requests-jitter 100
+      --access-logfile -
+
+    envVars:
+      # sync: false -- Render prompts for these and stores them itself. Nothing
+      # here reaches git.
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_DIRECT_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: KHALTI_SECRET_KEY
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+
+      # Deployment-specific, and the two most likely to be got wrong. An empty
+      # DJANGO_CORS_ALLOWED_ORIGINS boots cleanly and blocks the storefront in the
+      # browser with nothing in the backend logs -- it is the one misconfiguration
+      # ADR 0008 cannot catch, which is why it is prompted rather than defaulted.
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: DJANGO_CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: STOREFRONT_URL
+        sync: false
+      - key: DJANGO_DEFAULT_FROM_EMAIL
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: KHALTI_BASE_URL
+        sync: false
+      - key: KHALTI_RETURN_URL
+        sync: false
+
+      # manage.py falls back to config.settings.local, so without this the build's
+      # collectstatic runs with local's non-manifest storage, writes no
+      # staticfiles.json, and every page using {% static %} then 500s under
+      # production's CompressedManifestStaticFilesStorage. migrate needs it too.
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_LOG_LEVEL
+        value: INFO
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "True"
+      - key: DJANGO_SECURE_HSTS_SECONDS
+        value: "31536000"
+      - key: JWT_ACCESS_TOKEN_LIFETIME_MINUTES
+        value: "15"
+      - key: JWT_REFRESH_TOKEN_LIFETIME_DAYS
+        value: "7"
+      - key: DJANGO_THROTTLE_ANON
+        value: 60/hour
+      - key: DJANGO_THROTTLE_USER
+        value: 1000/hour
+      - key: DJANGO_THROTTLE_CATALOG
+        value: 600/hour
+      - key: DJANGO_THROTTLE_ORDER_LOOKUP
+        value: 20/hour
+      - key: DJANGO_THROTTLE_CHECKOUT
+        value: 30/hour
+      - key: DJANGO_THROTTLE_PAYMENT_RETURN
+        value: 60/hour
+      - key: DJANGO_EMAIL_BACKEND
+        value: django.core.mail.backends.smtp.EmailBackend
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_TIMEOUT
+        value: "10"
+      - key: SHIPPING_FEE_INSIDE_VALLEY
+        value: "150.00"
+      - key: SHIPPING_FEE_OUTSIDE_VALLEY
+        value: "250.00"
+      - key: KHALTI_TIMEOUT
+        value: "10"

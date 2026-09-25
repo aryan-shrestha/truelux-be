@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DJANGO_SECRET_KEY: ci-secret-key-not-used-outside-ci
+  DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+  DATABASE_URL: postgres://postgres:postgres@localhost:5432/clothing_store
+  DATABASE_DIRECT_URL: postgres://postgres:postgres@localhost:5432/clothing_store
+  REDIS_URL: redis://localhost:6379/0
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: clothing_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: make lint
+
+      - name: Typecheck
+        run: make typecheck
+
+      - name: Test
+        run: make test
+
+      # architecture.md requires every model change to ship with its migration,
+      # and nothing enforced it. --check exits non-zero when a model has drifted
+      # from its migrations; --dry-run stops it writing one.
+      - name: Migrations are up to date
+        run: uv run python manage.py makemigrations --check --dry-run
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test

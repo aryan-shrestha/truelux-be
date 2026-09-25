@@ -1,0 +1,15 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;">
+  {% for item in items %}
+    <tr>
+      <td style="padding:8px 0;border-bottom:1px solid #eee;">
+        {{ item.quantity }} &times; {{ item.product_name }}<br>
+        <span style="font-size:13px;color:#666;">{{ item.variant_size }}, {{ item.variant_color }}</span>
+      </td>
+      {% if show_prices %}
+        <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;">
+          Rs. {{ item.unit_price }} each
+        </td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+</table>

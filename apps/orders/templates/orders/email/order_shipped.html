@@ -1,0 +1,26 @@
+{% extends "orders/email/_base.html" %}
+
+{% block content %}
+  <h1 style="margin:0 0 16px;font-size:20px;">Your order is on its way</h1>
+
+  <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">
+    Hello {{ order.full_name }}, order <strong>{{ order.order_number }}</strong>
+    left us today and is with the courier.
+  </p>
+
+  {# No prices: the text part of this same message lists none, and a multipart
+     alternative that says something different from its counterpart is a bug the
+     customer sees only in one client. #}
+  {% include "orders/email/_items.html" with show_prices=False %}
+  {% include "orders/email/_address.html" %}
+
+  {% if order.payment_method == "cod" %}
+    <p style="margin:16px 0;font-size:14px;">
+      Please have <strong>Rs. {{ order.total }}</strong> ready for the courier.
+    </p>
+  {% endif %}
+
+  <p style="margin:24px 0 0;">
+    <a href="{{ order_url }}" style="display:inline-block;padding:12px 20px;background:#1a1a1a;color:#ffffff;text-decoration:none;font-size:15px;">View your order</a>
+  </p>
+{% endblock %}

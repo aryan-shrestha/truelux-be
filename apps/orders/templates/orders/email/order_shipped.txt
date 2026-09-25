@@ -1,0 +1,18 @@
+{% autoescape off %}{# Plain text: escaping would put &amp; in front of a customer #}
+Hello {{ order.full_name }},
+
+Order {{ order.order_number }} left us today and is with the courier.
+
+{% for item in items %}- {{ item.quantity }} x {{ item.product_name }} ({{ item.variant_size }}, {{ item.variant_color }})
+{% endfor %}
+Delivering to:
+{{ order.full_name }}
+{{ order.address_line }}
+{{ order.city }}, {{ order.district }}
+{{ order.phone }}
+
+{% if order.payment_method == "cod" %}Please have Rs. {{ order.total }} ready for the courier.{% endif %}
+
+The full order is here:
+{{ order_url }}
+{% endautoescape %}
