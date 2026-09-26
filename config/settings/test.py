@@ -42,6 +42,8 @@ _TEST_ENVIRONMENT = {
     "DEMO_STAFF_EMAIL": "staff@truelux.invalid",
     "DEMO_STAFF_PASSWORD": "test-staff-password",
     "SEED_DEMO_DATA": "False",
+    # The runner builds a fresh test database, which has only `public`.
+    "DATABASE_SCHEMA": "public",
 }
 
 os.environ.update(_TEST_ENVIRONMENT)

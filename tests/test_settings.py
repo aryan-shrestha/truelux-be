@@ -106,6 +106,9 @@ def test_a_variable_that_may_be_empty_is_accepted_empty(clean_env, name):
         ("SHIPPING_FEE_INSIDE_VALLEY", "one hundred"),
         ("STOREFRONT_URL", "shop.example.com"),
         ("DATABASE_URL", "not-a-database-url"),
+        ("DATABASE_SCHEMA", "truelux,public"),
+        ("DATABASE_SCHEMA", "truelux -c statement_timeout=0"),
+        ("DATABASE_SCHEMA", "Truelux"),
         ("DJANGO_THROTTLE_CATALOG", "600/fortnight"),
         ("DJANGO_THROTTLE_CATALOG", "lots/hour"),
     ],
@@ -285,6 +288,15 @@ def test_pooler_constraints_are_applied(clean_env, alias):
     # Flipped to True, every view body runs inside a transaction, and ADR 0006's
     # on-commit email and every Cloudinary upload would move inside one.
     assert database["ATOMIC_REQUESTS"] is False
+
+
+@pytest.mark.parametrize("alias", ["default", "direct"])
+def test_database_schema_is_the_connection_search_path(clean_env, alias):
+    clean_env.setenv("DATABASE_SCHEMA", "truelux")
+
+    settings = _reload("config.settings.base")
+
+    assert settings.DATABASES[alias]["OPTIONS"]["options"] == "-c search_path=truelux"
 
 
 def test_the_cache_is_the_database_table_the_build_creates(clean_env):

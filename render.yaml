@@ -66,6 +66,9 @@ services:
         sync: false
       - key: DATABASE_DIRECT_URL
         sync: false
+      # Created by hand in Supabase before the first deploy; see deployment.md.
+      - key: DATABASE_SCHEMA
+        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

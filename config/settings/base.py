@@ -106,6 +106,12 @@ DATABASES = {
     },
 }
 
+# Every table, sequence and the cache table live in this one schema, which must
+# exist before `migrate` (deployment.md). It is a startup parameter rather than a
+# `SET` on connect because the transaction pooler hands each transaction whichever
+# server connection is free, and a session `SET` would not follow it.
+DATABASE_SCHEMA = read.identifier("DATABASE_SCHEMA")
+
 # Supabase's transaction pooler multiplexes one server connection across clients,
 # which makes server-side cursors and psycopg's prepared statements unusable, and
 # makes a Django-side connection pool actively harmful: Supavisor already pools, so
@@ -115,6 +121,7 @@ for _alias in DATABASES:
     DATABASES[_alias]["ATOMIC_REQUESTS"] = False
     DATABASES[_alias].setdefault("OPTIONS", {})
     DATABASES[_alias]["OPTIONS"]["prepare_threshold"] = None
+    DATABASES[_alias]["OPTIONS"]["options"] = f"-c search_path={DATABASE_SCHEMA}"
     DATABASES[_alias]["OPTIONS"].setdefault("sslmode", "require")
     DATABASES[_alias]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
