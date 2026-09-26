@@ -11,7 +11,7 @@ Redis were removed at the fork.
 | #   | Feature             | Status      | Documentation                     | Depends on | Last updated |
 | --- | ------------------- | ----------- | --------------------------------- | ---------- | ------------ |
 | 1   | staff-identity      | Implemented | `features/staff-identity.md`      | —          | 2026-09-25   |
-| 2   | api-error-contract  | Implemented | `features/api-error-contract.md`  | 1          | 2026-09-25   |
+| 2   | api-error-contract  | Implemented | `features/api-error-contract.md`  | 1          | 2026-09-26   |
 | 3   | media-storage       | Implemented | `features/media-storage.md`       | —          | 2026-09-25   |
 | 4   | product-catalog     | Implemented | `features/product-catalog.md`     | 2, 3       | 2026-09-26   |
 | 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-26   |
@@ -22,7 +22,7 @@ Redis were removed at the fork.
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
 | 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-26 |
 | 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-26   |
-| 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-25   |
+| 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-26   |
 | 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15 | 2026-09-26 |
