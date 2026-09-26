@@ -169,3 +169,11 @@ def test_order_list_date_filters_use_the_shop_day_inclusively(staff_client):
     assert {o["id"] for o in on_the_day.data["results"]} == {first_minute, last_minute}
     assert after.data["count"] == 3
     assert before.data["count"] == 1
+
+
+def test_order_list_created_before_the_last_representable_day_lists_everything(staff_client):
+    OrderFactory()
+
+    response = staff_client.get(reverse("v1:admin-order-list"), {"created_before": "9999-12-31"})
+
+    assert response.data["count"] == 1

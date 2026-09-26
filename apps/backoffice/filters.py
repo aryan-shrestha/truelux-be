@@ -49,4 +49,6 @@ class AdminOrderFilter(django_filters.FilterSet):  # type: ignore[misc]  # djang
     def filter_created_before(
         self, queryset: QuerySet[Order], name: str, value: date
     ) -> QuerySet[Order]:
+        if value == date.max:
+            return queryset
         return queryset.filter(created_at__lt=start_of_shop_day(value + timedelta(days=1)))
