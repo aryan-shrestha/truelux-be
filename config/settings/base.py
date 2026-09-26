@@ -21,6 +21,9 @@ ALLOWED_HOSTS = read.string_list("DJANGO_ALLOWED_HOSTS")
 
 CORS_ALLOWED_ORIGINS = read.string_list("DJANGO_CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
+# Browsers hide response headers from cross-origin scripts unless they are listed,
+# and the storefront quotes the request id in its error messages.
+CORS_EXPOSE_HEADERS = ["X-Request-ID"]
 CSRF_TRUSTED_ORIGINS = read.string_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 SECURE_SSL_REDIRECT = read.flag("DJANGO_SECURE_SSL_REDIRECT")

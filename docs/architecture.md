@@ -458,7 +458,8 @@ Rules:
 - 500 responses carry no exception text. The detail goes to the logs with the
   request id.
 - Every log line and every response carries a request id, so a client-reported
-  failure can be found in Render's logs.
+  failure can be found in Render's logs. CORS exposes `X-Request-ID` so browser
+  clients can read it.
 
 ---
 

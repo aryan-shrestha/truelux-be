@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ---
 
@@ -167,6 +167,8 @@ but the default is deliberate and should rarely be overridden.
 
 - The handler runs for **every** endpoint, including the two health endpoints,
   which opt out of authentication and throttling but not out of exception handling.
+- `X-Request-ID` is listed in `CORS_EXPOSE_HEADERS`; without it a browser hides the
+  header from the storefront's scripts, which quote it in error messages.
 - `_describe()` already flattens a DRF `ValidationError` detail dict into
   `details`, so field errors land keyed by field name. Do not reimplement this.
 - The `IntegrityError` branch returning 409 is deliberate and predates this work.
@@ -200,7 +202,7 @@ endpoint.
   "error": {
     "code": "insufficient_stock",
     "message": "Not enough stock to fulfil this order.",
-    "details": { "variant_id": "...", "available": 2 }
+    "details": { "variant_id": "...", "requested": 3 }
   }
 }
 ```

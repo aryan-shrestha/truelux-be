@@ -186,6 +186,7 @@ return bare arrays.
 - `sales_by_day` holds 30 entries, oldest first, zero-filled.
 - `low_stock` lists variants with `stock_quantity <= LOW_STOCK_THRESHOLD` (5, a
   constant in `apps/backoffice/constants.py`), lowest first, at most 10.
+  `shade` is the shade's name, or `null` for a shadeless variant.
 
 ### Products
 

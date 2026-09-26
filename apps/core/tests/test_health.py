@@ -79,3 +79,13 @@ def test_an_oversized_upstream_request_id_is_replaced(api_client):
     response = api_client.get(reverse("health:live"), headers={"x-request-id": "x" * 500})
 
     assert len(response[REQUEST_ID_HEADER]) <= 64
+
+
+def test_a_cross_origin_browser_can_read_the_request_id(api_client, settings):
+    settings.CORS_ALLOWED_ORIGINS = ["https://shop.example.com"]
+
+    response = api_client.get(
+        reverse("health:live"), headers={"origin": "https://shop.example.com"}
+    )
+
+    assert REQUEST_ID_HEADER in response["Access-Control-Expose-Headers"].split(", ")

@@ -60,7 +60,8 @@ colour axis became an optional shade. `apps/orders` writes stock only through
 - `apps/catalog/services/taxonomy.py` — create/update/delete for brands, categories,
   shades and sizes, with slug derivation and a category-cycle check.
 - `apps/catalog/services/__init__.py` re-exports every public service.
-- One fresh migration, `apps/catalog/migrations/0001_initial.py`.
+- Migrations: a fresh `apps/catalog/migrations/0001_initial.py`, then
+  `0002_skin_types.py` (see `skin-types.md`).
 
 ---
 

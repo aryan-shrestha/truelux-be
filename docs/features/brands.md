@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ---
 
@@ -78,7 +78,7 @@ model rather than a product attribute. The filter follows the existing
   every product item; `BrandSerializer` for the brand endpoints.
 - `apps/catalog/views.py`, `urls.py` — `BrandViewSet` (read-only, slug lookup,
   `AllowAny`, `catalog` throttle scope, unpaginated), registered as `brands`.
-- `apps/catalog/services.py` — `decrement_variant_stock` treats a variant whose brand
+- `apps/catalog/services/stock.py` — `decrement_variant_stock` treats a variant whose brand
   is inactive exactly like an unpublished one: `422 variant_unavailable` at checkout.
 - `apps/catalog/admin.py` — `BrandAdmin`; `ProductAdmin` lists and filters by brand.
 - `apps/catalog/management/commands/seed_demo.py` — eight seeded brands, each with a
@@ -205,7 +205,7 @@ apps/catalog/
 ├── serializers.py
 ├── views.py
 ├── urls.py
-├── services.py
+├── services/stock.py
 ├── admin.py
 └── tests/test_brands.py
 ```

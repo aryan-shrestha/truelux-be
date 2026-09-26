@@ -46,7 +46,8 @@ Redis were removed at the fork.
 - **Skin types and care details** (#17): products carry optional skin types, a skin
   feel and key ingredients; `?skin_type=` and `/skin-types/` serve the storefront's
   shop-by-skin-type menu, and `?category=<parent>` includes the parent's children.
-- Migrations were regenerated as fresh `0001_initial`s.
+- Migrations were regenerated as fresh `0001_initial`s; `catalog/0002_skin_types`
+  followed with skin types (#17).
 - **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, the Render
   build fills an empty database with the demo catalogue, orders and staff login.
 

@@ -106,7 +106,7 @@ class ProductListSerializer(serializers.ModelSerializer[Product]):
         )
 
     def get_primary_image(self, obj: Product) -> dict[str, str] | None:
-        # Reads the prefetch; falls back to the first image when none is primary.
+        # Picked in Python so the list view's prefetch serves it, not a query per product.
         images = list(obj.images.all())
         if not images:
             return None
