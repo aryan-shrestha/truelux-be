@@ -47,9 +47,12 @@ What is explicitly outside the scope?
   skincare is shadeless and sold by size. Every skincare and body product has 1–4
   skin types, a `skin_feel` and an INCI-style `key_ingredients` line; makeup,
   fragrance and haircare have none.
-- `apps/catalog/management/commands/seed_demo.py` — creates the rows with
-  `get_or_create`, generates each product image (800×1000) and brand logo
-  (400×400) as a PNG with Pillow: a gradient in the brand's palette with the
+- `apps/catalog/management/commands/seed_demo.py` — creates brands, sizes, shades
+  and skin types with `get_or_create`; upserts every seeded category (`parent`,
+  `name`, `sort_order`) and every seeded product (scalar fields, `category`, skin
+  types) with `update_or_create`, so a row that already existed is brought back to
+  the seed tree. Variants and images are only created with a new product. Generates
+  each product image (800×1000) and brand logo (400×400) as a PNG with Pillow: a gradient in the brand's palette with the
   initials and an ASCII-folded brand caption. No network access, no image files in
   the repository. `--flush` deletes the seeded products, then every seeded category
   (current or retired: `RETIRED_CATEGORY_SLUGS` lists the earlier Cleansers, Serums
@@ -103,11 +106,12 @@ that produces them; catalogue rows have no business rule beyond constraints.
 - Reseeding locally leaves the previous generated files in `media/` (the storage
   appends a suffix); delete the folder if it matters.
 - Seeded emails use `seed.invalid`, which can never resolve.
-- Without `--flush`, `seed_demo` only adds: `get_or_create` never re-parents or
-  renames an existing category, so a database seeded with the old tree needs
-  `make reseed` to show the new one.
-- A seeded category that still holds a product the merchant added is kept by
-  `--flush`, with whatever parent and name it has.
+- A seeded category that still holds a product the merchant (or an e2e run) added
+  survives `--flush`, and when its parent is flushed `SET_NULL` turns it into a
+  root. Seeding re-parents it, which is why categories are upserted rather than
+  `get_or_create`d.
+- Seeding overwrites staff edits to a seeded category's or seeded product's name,
+  parent, category, price, published flag or sort order. The seed owns those rows.
 
 ---
 
@@ -123,7 +127,9 @@ DEBUG only.
   category tree in menu order, two published products per child category, skin types
   and care details on skincare and body products, shade counts, perfume sizes,
   shadeless skincare, the awkward cases, idempotence, flush (including a retired
-  category and a re-parented one, and keeping a category a merchant product uses),
+  category and a re-parented one, keeping a category a merchant product uses, and
+  re-parenting that surviving category), restoring an edited seeded category and
+  product without `--flush`,
   one primary per product, generated PNGs.
 - `apps/orders/tests/test_seed_orders.py` — every status present, a payment per
   order, cash collected only for delivered orders, stock arithmetic, flush

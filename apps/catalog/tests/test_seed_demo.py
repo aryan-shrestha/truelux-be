@@ -174,3 +174,41 @@ def test_seeded_images_are_generated_pngs(seeded):
     with Image.open(image.image.path) as png:
         assert png.format == "PNG"
         assert png.size == (800, 1000)
+
+
+@pytest.mark.django_db
+def test_flush_reparents_a_surviving_seeded_category(seeded):
+    cleanse = Category.objects.get(slug="cleanse")
+    ProductFactory(category=cleanse)
+    Category.objects.filter(pk=cleanse.pk).update(name="Old Cleansers", sort_order=99)
+
+    call_command("seed_demo", flush=True)
+
+    cleanse.refresh_from_db()
+    assert cleanse.parent is not None
+    assert cleanse.parent.slug == "skincare"
+    assert (cleanse.name, cleanse.sort_order) == ("Cleanse", 0)
+    assert Category.objects.filter(parent__slug="skincare").first() == cleanse
+
+
+@pytest.mark.django_db
+def test_reseeding_restores_a_seeded_product_and_category(seeded):
+    Category.objects.filter(slug="tone").update(parent=None, name="Toners", sort_order=42)
+    Product.objects.filter(slug="rose-milk-cleanser").update(
+        name="Renamed", category=Category.objects.get(slug="lips"), is_published=False
+    )
+
+    call_command("seed_demo")
+
+    tone = Category.objects.get(slug="tone")
+    assert (tone.parent.slug if tone.parent else None, tone.name, tone.sort_order) == (
+        "skincare",
+        "Tone",
+        3,
+    )
+    product = Product.objects.get(slug="rose-milk-cleanser")
+    assert (product.name, product.category.slug, product.is_published) == (
+        "Rose Milk Cleanser",
+        "cleanse",
+        True,
+    )

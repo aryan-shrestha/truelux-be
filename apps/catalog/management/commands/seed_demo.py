@@ -190,13 +190,13 @@ class Command(BaseCommand):
     def _seed_categories(self) -> dict[str, Category]:
         categories: dict[str, Category] = {}
         for order, (name, slug, children) in enumerate(CATEGORIES):
-            parent, _ = Category.objects.get_or_create(
-                slug=slug, defaults={"name": name, "sort_order": order}
+            parent, _ = Category.objects.update_or_create(
+                slug=slug, defaults={"name": name, "parent": None, "sort_order": order}
             )
             categories[slug] = parent
 
             for child_order, (child_name, child_slug) in enumerate(children):
-                child, _ = Category.objects.get_or_create(
+                child, _ = Category.objects.update_or_create(
                     slug=child_slug,
                     defaults={"name": child_name, "parent": parent, "sort_order": child_order},
                 )
@@ -215,7 +215,7 @@ class Command(BaseCommand):
         brand_specs = {spec.slug: spec for spec in BRANDS}
 
         for order, spec in enumerate(PRODUCTS):
-            product, created = Product.objects.get_or_create(
+            product, created = Product.objects.update_or_create(
                 slug=spec.slug,
                 defaults={
                     "name": spec.name,
@@ -229,11 +229,11 @@ class Command(BaseCommand):
                     "key_ingredients": spec.key_ingredients,
                 },
             )
+            product.skin_types.set(skin_types[slug] for slug in spec.skin_types)
             if not created:
                 continue
 
             created_count += 1
-            product.skin_types.set(skin_types[slug] for slug in spec.skin_types)
             brand_spec = brand_specs[spec.brand]
             self._seed_variants(product, spec, brand_spec, sizes, shades)
             self._seed_images(product, spec, brand_spec)
