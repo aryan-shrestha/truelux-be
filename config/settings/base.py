@@ -134,6 +134,7 @@ CLOUDINARY_STORAGE = {
     "CLOUD_NAME": read.text("CLOUDINARY_CLOUD_NAME"),
     "API_KEY": read.text("CLOUDINARY_API_KEY"),
     "API_SECRET": read.text("CLOUDINARY_API_SECRET"),
+    "PREFIX": "truelux",
 }
 
 STORAGES = {

@@ -100,7 +100,7 @@ services:
       - key: EMAIL_HOST
         sync: false
 
-      # manage.py falls back to config.settings.local, so without this the build's
+      # manage.py falls back to config.settings.dev, so without this the build's
       # collectstatic runs with local's non-manifest storage, writes no
       # staticfiles.json, and every page using {% static %} then 500s under
       # production's CompressedManifestStaticFilesStorage. migrate needs it too.

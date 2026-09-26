@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-DJANGO_SETTINGS_MODULE ?= config.settings.local
+DJANGO_SETTINGS_MODULE ?= config.settings.dev
 MANAGE := uv run python manage.py
 
 .PHONY: help install run test lint format typecheck migrate makemigrations seed reseed seed-staff catalogue-template catalogue-export catalogue-import shell superuser check

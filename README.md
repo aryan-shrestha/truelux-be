@@ -32,49 +32,49 @@ make seed-staff             # staff@truelux.com / truelux-demo-staff (from .env)
 make run                    # http://localhost:8000
 ```
 
-`config.settings.local` forces `DEBUG` on and the SSL redirect off, stores uploads
+`config.settings.dev` forces `DEBUG` on and the SSL redirect off, stores uploads
 in `media/` and prints email to the console. Every variable in `.env.example` is
 required (ADR 0008); a missing or malformed one stops startup with one error
 naming all of them.
 
 ## Commands
 
-| Command | Does |
-| --- | --- |
-| `make install` | Sync the virtualenv from `uv.lock` |
-| `make run` | Development server on port 8000 |
-| `make migrate` | Migrate and create the cache table over the direct connection |
-| `make seed` / `make reseed` | Demo catalogue and orders / delete and seed again |
-| `make seed-staff` | Create or reset the demo staff login |
-| `make test` | pytest with coverage (80% floor) |
-| `make lint` / `make format` | ruff |
-| `make typecheck` | mypy (strict) |
-| `make shell` / `make superuser` / `make check` | Django management |
+| Command                                        | Does                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| `make install`                                 | Sync the virtualenv from `uv.lock`                            |
+| `make run`                                     | Development server on port 8000                               |
+| `make migrate`                                 | Migrate and create the cache table over the direct connection |
+| `make seed` / `make reseed`                    | Demo catalogue and orders / delete and seed again             |
+| `make seed-staff`                              | Create or reset the demo staff login                          |
+| `make test`                                    | pytest with coverage (80% floor)                              |
+| `make lint` / `make format`                    | ruff                                                          |
+| `make typecheck`                               | mypy (strict)                                                 |
+| `make shell` / `make superuser` / `make check` | Django management                                             |
 
 ## Endpoints
 
 Public (storefront):
 
-| Path | Methods | Purpose |
-| --- | --- | --- |
-| `/api/v1/products/` | GET | Visible products; `brand` (repeatable), `category`, `size`, `shade`, price and `in_stock` filters, search, ordering, pagination |
-| `/api/v1/products/{slug}/` | GET | One product with variants (`shade` may be `null`) |
-| `/api/v1/brands/`, `/api/v1/brands/{slug}/` | GET | Active brands with published product counts |
-| `/api/v1/categories/` | GET | The category tree |
-| `/api/v1/shades/`, `/api/v1/sizes/` | GET | Facet values used by visible products |
-| `/api/v1/checkout/` | POST | Place a cash-on-delivery order |
-| `/api/v1/orders/lookup/` | POST | Find an order by number and email |
-| `/api/v1/orders/{access_token}/` | GET | One order; the token is the authorization |
+| Path                                        | Methods | Purpose                                                                                                                         |
+| ------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/products/`                         | GET     | Visible products; `brand` (repeatable), `category`, `size`, `shade`, price and `in_stock` filters, search, ordering, pagination |
+| `/api/v1/products/{slug}/`                  | GET     | One product with variants (`shade` may be `null`)                                                                               |
+| `/api/v1/brands/`, `/api/v1/brands/{slug}/` | GET     | Active brands with published product counts                                                                                     |
+| `/api/v1/categories/`                       | GET     | The category tree                                                                                                               |
+| `/api/v1/shades/`, `/api/v1/sizes/`         | GET     | Facet values used by visible products                                                                                           |
+| `/api/v1/checkout/`                         | POST    | Place a cash-on-delivery order                                                                                                  |
+| `/api/v1/orders/lookup/`                    | POST    | Find an order by number and email                                                                                               |
+| `/api/v1/orders/{access_token}/`            | GET     | One order; the token is the authorization                                                                                       |
 
 Staff (admin app; `Authorization: Bearer <access>`):
 
-| Path | Purpose |
-| --- | --- |
-| `/api/v1/auth/token/`, `/token/refresh/`, `/logout/`, `/me/` | Staff JWT login, rotation, revocation, profile |
-| `/api/v1/admin/dashboard/` | Orders by status, revenue, 30-day sales, recent orders, low stock |
-| `/api/v1/admin/products/` … `/variants/{id}/`, `/images/{id}/` | Catalogue CRUD, stock, images |
-| `/api/v1/admin/brands/`, `/categories/`, `/shades/`, `/sizes/` | Taxonomy CRUD |
-| `/api/v1/admin/orders/`, `/orders/{id}/transition/` | Order queue and status changes |
+| Path                                                           | Purpose                                                           |
+| -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `/api/v1/auth/token/`, `/token/refresh/`, `/logout/`, `/me/`   | Staff JWT login, rotation, revocation, profile                    |
+| `/api/v1/admin/dashboard/`                                     | Orders by status, revenue, 30-day sales, recent orders, low stock |
+| `/api/v1/admin/products/` … `/variants/{id}/`, `/images/{id}/` | Catalogue CRUD, stock, images                                     |
+| `/api/v1/admin/brands/`, `/categories/`, `/shades/`, `/sizes/` | Taxonomy CRUD                                                     |
+| `/api/v1/admin/orders/`, `/orders/{id}/transition/`            | Order queue and status changes                                    |
 
 Other: `/health/`, `/health/ready/`, `/django-admin/` (superusers),
 `/api/schema/` (OpenAPI, plus `/swagger-ui/` and `/redoc/`). The full contracts are
