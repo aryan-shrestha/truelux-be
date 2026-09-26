@@ -141,7 +141,11 @@ foreign-key failure reported as `409 conflict`.
 - Order numbers are `TL-<year>-<6 digits>` (for example `TL-2026-000123`), from the
   existing sequence; the `TL-000123` in the examples below is illustrative.
 - `item_count` is the number of units (sum of line quantities), not of lines.
-- `created_after` / `created_before` compare the UTC date of `created_at`.
+- `created_after` / `created_before` are `Asia/Kathmandu` days, like the dashboard,
+  so a KPI link lists exactly the orders the KPI counted. Both ends are inclusive:
+  the filter is `created_at >= 00:00 NPT on created_after` and `< 00:00 NPT on the
+  day after created_before`. An order at 00:30 NPT falls on the previous UTC day,
+  so comparing `created_at__date` (UTC) would put it on the wrong day.
 - Product `search` matches the name or any variant SKU (with `.distinct()`).
 - Unique names and slugs, and a second shadeless variant of one size, are enforced
   by the database: `409 conflict`.
@@ -259,7 +263,7 @@ ancestor (`400 validation_error`).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `orders/` | paginated. `status` (repeatable), `search` (order number, name, email, phone), `created_after`, `created_before` (ISO dates) |
+| GET | `orders/` | paginated. `status` (repeatable), `search` (order number, name, email, phone), `created_after`, `created_before` (ISO dates, inclusive, `Asia/Kathmandu` days) |
 | GET | `orders/{id}/` | detail |
 | POST | `orders/{id}/transition/` | `{ "to": "confirmed" \| "shipped" \| "delivered" \| "cancelled" }` |
 
@@ -309,7 +313,8 @@ tokens get `403`.
   and slug derivation; shade hex validation; deleting a referenced brand, shade,
   size or category is 409; duplicate names are 409; category cycles are 400; skin
   type CRUD with `product_count`, and deleting one detaches it.
-- `test_orders.py` — list shape, status/search/date filters, constant two queries;
+- `test_orders.py` — list shape, status/search/date filters (Kathmandu day
+  boundaries, both ends inclusive), constant two queries;
   detail with `allowed_transitions` and `line_total`; each transition path; the
   documented 422 codes; cancel restores stock; `ALLOWED_TRANSITIONS` agrees with the
   services for every pair.

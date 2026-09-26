@@ -1,11 +1,14 @@
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
 from django.urls import reverse
 
+from apps.backoffice.constants import SHOP_TIME_ZONE
 from apps.catalog.tests.factories import ProductVariantFactory
 from apps.core.exceptions import DomainError
 from apps.orders.constants import ALLOWED_TRANSITIONS, OrderStatus
+from apps.orders.models import Order
 from apps.orders.services import transition_order
 from apps.orders.tests.factories import OrderFactory, OrderItemFactory
 
@@ -141,3 +144,28 @@ def test_allowed_transitions_agree_with_the_services(start, to):
         moved = True
 
     assert moved == (to in ALLOWED_TRANSITIONS[start])
+
+
+def test_order_list_date_filters_use_the_shop_day_inclusively(staff_client):
+    def placed_at(*args):
+        order = OrderFactory()
+        at = datetime(*args, tzinfo=SHOP_TIME_ZONE)
+        Order.objects.filter(pk=order.pk).update(created_at=at)
+        return str(order.pk)
+
+    # 00:30 on the 25th in Kathmandu is 18:45 on the 24th in UTC.
+    first_minute = placed_at(2026, 9, 25, 0, 30)
+    last_minute = placed_at(2026, 9, 25, 23, 59)
+    placed_at(2026, 9, 24, 23, 59)
+    placed_at(2026, 9, 26, 0, 0)
+    url = reverse("v1:admin-order-list")
+
+    on_the_day = staff_client.get(
+        url, {"created_after": "2026-09-25", "created_before": "2026-09-25"}
+    )
+    after = staff_client.get(url, {"created_after": "2026-09-25"})
+    before = staff_client.get(url, {"created_before": "2026-09-24"})
+
+    assert {o["id"] for o in on_the_day.data["results"]} == {first_minute, last_minute}
+    assert after.data["count"] == 3
+    assert before.data["count"] == 1

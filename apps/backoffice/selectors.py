@@ -98,7 +98,7 @@ def get_order(*, order_id: UUID) -> Order:
     return Order.objects.prefetch_related("items").get(pk=order_id)
 
 
-def _start_of_shop_day(day: date) -> datetime:
+def start_of_shop_day(day: date) -> datetime:
     return datetime.combine(day, time.min, tzinfo=SHOP_TIME_ZONE)
 
 
@@ -115,7 +115,7 @@ def get_dashboard() -> dict[str, Any]:
 
     daily = {
         row["day"]: row
-        for row in earning.filter(created_at__gte=_start_of_shop_day(window_start))
+        for row in earning.filter(created_at__gte=start_of_shop_day(window_start))
         .annotate(day=TruncDate("created_at", tzinfo=SHOP_TIME_ZONE))
         .values("day")
         .annotate(orders=Count("pk"), revenue=Sum("total"))
@@ -135,9 +135,9 @@ def get_dashboard() -> dict[str, Any]:
     return {
         "orders_by_status": {status: counts.get(status, 0) for status in OrderStatus.values},
         "revenue": earning.aggregate(
-            today=_revenue_since(_start_of_shop_day(today)),
-            last_7_days=_revenue_since(_start_of_shop_day(today - timedelta(days=6))),
-            last_30_days=_revenue_since(_start_of_shop_day(window_start)),
+            today=_revenue_since(start_of_shop_day(today)),
+            last_7_days=_revenue_since(start_of_shop_day(today - timedelta(days=6))),
+            last_30_days=_revenue_since(start_of_shop_day(window_start)),
         ),
         "sales_by_day": sales_by_day,
         "recent_orders": list(list_orders()[:RECENT_ORDER_LIMIT]),
