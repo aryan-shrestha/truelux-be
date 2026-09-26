@@ -12,3 +12,7 @@ staticfiles/
 media/
 *.sqlite3
 .DS_Store
+# Production credentials for one-off commands run from a laptop (catalogue-import.md).
+.env.production
+# Catalogue workbooks carry the client's data.
+*.xlsx

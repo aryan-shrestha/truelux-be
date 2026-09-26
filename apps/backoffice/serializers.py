@@ -5,7 +5,7 @@ from django.core.files import File
 from django.core.validators import RegexValidator
 from rest_framework import serializers
 
-from apps.backoffice.constants import ALLOWED_IMAGE_FORMATS, MAX_IMAGE_BYTES
+from apps.catalog.constants import ALLOWED_IMAGE_FORMATS, MAX_IMAGE_BYTES
 from apps.catalog.models import (
     Brand,
     Category,

@@ -125,6 +125,26 @@ deploy can get a catalogue and a staff login.
 
 ---
 
+## Loading the real catalogue
+
+The client's catalogue is imported from the owner's machine, not by the build
+([ADR 0016](../decisions/0016-the-real-catalogue-is-imported-from-a-workbook.md);
+full runbook in `catalogue-import.md`):
+
+1. Put production's variables in `.env.production` (gitignored, never committed):
+   `DATABASE_URL`, `DATABASE_DIRECT_URL`, the Cloudinary keys and the rest of
+   `.env.example`, with `SEED_DEMO_DATA=false`.
+2. Set `SEED_DEMO_DATA` to `"false"` in the Render dashboard, so the build does not
+   seed demo products into the real shop.
+3. `ENV_FILE=.env.production DJANGO_SETTINGS_MODULE=config.settings.production make
+   catalogue-import FILE=… IMAGES=… ARGS=--dry-run`, fix what it reports, then run it
+   without `--dry-run`.
+
+`ENV_FILE` makes the settings read that file instead of `.env`; a missing file fails
+at import.
+
+---
+
 ## Data changes
 
 None.

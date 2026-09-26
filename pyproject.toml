@@ -18,6 +18,7 @@ dependencies = [
     "cloudinary>=1.41",
     "django-cloudinary-storage>=0.3",
     "pillow>=11.0",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]
@@ -32,6 +33,7 @@ dev = [
     "django-stubs[compatible-mypy]>=5.1",
     "djangorestframework-stubs[compatible-mypy]>=3.15",
     "pre-commit>=4.0",
+    "types-openpyxl>=3.1.5.20260827",
 ]
 
 [tool.ruff]
@@ -81,7 +83,7 @@ disallow_untyped_calls = false
 disable_error_code = ["attr-defined"]
 
 [[tool.mypy.overrides]]
-module = ["factory.*", "environ.*", "django_filters.*"]
+module = ["factory.*", "environ.*", "django_filters.*", "cloudinary.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

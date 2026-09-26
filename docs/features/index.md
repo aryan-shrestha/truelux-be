@@ -27,6 +27,7 @@ Redis were removed at the fork.
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-26   |
 | 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15 | 2026-09-26 |
 | 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
+| 18  | catalogue-import    | Implemented | `features/catalogue-import.md`    | 3, 4, 17   | 2026-09-26   |
 
 `Depends on` refers to the `#` column of this table.
 
@@ -48,6 +49,9 @@ Redis were removed at the fork.
   shop-by-skin-type menu, and `?category=<parent>` includes the parent's children.
 - Migrations were regenerated as fresh `0001_initial`s; `catalog/0002_skin_types`
   followed with skin types (#17).
+- **The real catalogue loads from a workbook** (#18, ADR 0016): `import_catalogue`
+  validates an Excel workbook and upserts it through the services, locally or into
+  production from the owner's machine with `ENV_FILE=.env.production`.
 - **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, the Render
   build fills an empty database with the demo catalogue, orders and staff login.
 
@@ -88,11 +92,13 @@ Redis were removed at the fork.
 | 0013 | The admin API is its own app                    | admin-api                             |
 | 0014 | The database cache replaces Redis               | deployment, every throttled endpoint  |
 | 0015 | The build seeds demo data when asked            | deployment, demo-seed, staff-auth     |
+| 0016 | The real catalogue is imported from a workbook  | catalogue-import, deployment          |
 
 ## Deferred
 
 Customer accounts and order history, online payment, discount codes, wishlist,
-reviews, returns and refunds, staff roles, bulk import/export, courier tracking,
+reviews, returns and refunds, staff roles, bulk import/export in the admin app (the
+owner's workbook import is #18), courier tracking,
 restock notifications, and a scheduler for sweeps (stale pending orders, unsent
 email).
 

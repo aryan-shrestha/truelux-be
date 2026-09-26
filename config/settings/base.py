@@ -1,14 +1,26 @@
+import os
 from datetime import timedelta
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 from config.settings.strict_env import EnvironmentReader
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# ENV_FILE points one command at another deployment's variables instead of .env, e.g.
+# importing the catalogue into production from the owner's machine
+# (docs/features/catalogue-import.md). Like DJANGO_SETTINGS_MODULE it chooses where
+# the settings come from, so it is read before them; convention.md lists the exception.
+_env_file = Path(os.environ.get("ENV_FILE") or BASE_DIR / ".env")
+if "ENV_FILE" in os.environ and not _env_file.is_file():
+    # read_env only warns about a missing file, and the variables it would have set
+    # could then come from the shell instead: the wrong database, with no error.
+    raise ImproperlyConfigured(f"ENV_FILE names {_env_file}, which does not exist.")
+
 env = environ.Env()
-environ.Env.read_env(BASE_DIR / ".env")
+environ.Env.read_env(_env_file)
 
 # Every variable below is required, in every environment, and nothing has a default.
 # `read` collects each problem rather than raising on the first, and

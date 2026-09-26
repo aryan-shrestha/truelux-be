@@ -2,7 +2,7 @@
 DJANGO_SETTINGS_MODULE ?= config.settings.local
 MANAGE := uv run python manage.py
 
-.PHONY: help install run test lint format typecheck migrate makemigrations seed reseed seed-staff shell superuser check
+.PHONY: help install run test lint format typecheck migrate makemigrations seed reseed seed-staff catalogue-template catalogue-export catalogue-import shell superuser check
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -45,6 +45,18 @@ reseed: ## Delete the seeded rows and seed again. Orders go first: they PROTECT 
 
 seed-staff: ## Create or reset the demo staff login from DEMO_STAFF_EMAIL (DEBUG only)
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) seed_staff
+
+catalogue-template: OUT ?= catalogue-template.xlsx
+catalogue-template: ## Write the blank catalogue workbook to OUT (default catalogue-template.xlsx)
+	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) export_catalogue "$(OUT)" --template
+
+catalogue-export: OUT ?= catalogue-export.xlsx
+catalogue-export: ## Write the database's catalogue to OUT (default catalogue-export.xlsx)
+	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) export_catalogue "$(OUT)"
+
+catalogue-import: ## Load FILE=<workbook> [IMAGES=<folder>] [ARGS="--dry-run --replace-images"]
+	@test -n "$(FILE)" || (echo 'Usage: make catalogue-import FILE=<workbook.xlsx> [IMAGES=<folder>] [ARGS=--dry-run]' && exit 2)
+	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) import_catalogue "$(FILE)" $(if $(IMAGES),--images "$(IMAGES)") $(ARGS)
 
 shell: ## Open the Django shell
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) shell

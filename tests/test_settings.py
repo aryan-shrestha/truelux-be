@@ -355,3 +355,22 @@ def teardown_module():
     # Restore the modules the reloads above mutated so later tests see test settings.
     for name in ("config.settings.base", "config.settings.test"):
         _reload(name)
+
+
+def test_env_file_chooses_the_file_the_settings_read(clean_env, tmp_path):
+    env_file = tmp_path / ".env.production"
+    env_file.write_text("")
+    read = []
+    clean_env.setattr(environ.Env, "read_env", staticmethod(lambda path, **kw: read.append(path)))
+    clean_env.setenv("ENV_FILE", str(env_file))
+
+    _reload("config.settings.base")
+
+    assert read == [env_file]
+
+
+def test_a_missing_env_file_fails_at_import(clean_env, tmp_path):
+    clean_env.setenv("ENV_FILE", str(tmp_path / ".env.production"))
+
+    with pytest.raises(ImproperlyConfigured, match="ENV_FILE"):
+        _reload("config.settings.base")
