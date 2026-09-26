@@ -147,17 +147,17 @@ def test_allowed_transitions_agree_with_the_services(start, to):
 
 
 def test_order_list_date_filters_use_the_shop_day_inclusively(staff_client):
-    def placed_at(*args):
+    def placed_at(day, hour, minute):
         order = OrderFactory()
-        at = datetime(*args, tzinfo=SHOP_TIME_ZONE)
+        at = datetime(2026, 9, day, hour, minute, tzinfo=SHOP_TIME_ZONE)
         Order.objects.filter(pk=order.pk).update(created_at=at)
         return str(order.pk)
 
     # 00:30 on the 25th in Kathmandu is 18:45 on the 24th in UTC.
-    first_minute = placed_at(2026, 9, 25, 0, 30)
-    last_minute = placed_at(2026, 9, 25, 23, 59)
-    placed_at(2026, 9, 24, 23, 59)
-    placed_at(2026, 9, 26, 0, 0)
+    first_minute = placed_at(25, 0, 30)
+    last_minute = placed_at(25, 23, 59)
+    placed_at(24, 23, 59)
+    placed_at(26, 0, 0)
     url = reverse("v1:admin-order-list")
 
     on_the_day = staff_client.get(
