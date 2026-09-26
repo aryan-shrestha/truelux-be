@@ -8,7 +8,7 @@ from rest_framework.serializers import BaseSerializer
 from rest_framework.throttling import ScopedRateThrottle
 
 from apps.catalog.filters import DeterministicOrderingFilter, ProductFilter
-from apps.catalog.models import Brand, Category, Product, Shade, Size
+from apps.catalog.models import Brand, Category, Product, Shade, Size, SkinType
 from apps.catalog.selectors import (
     get_active_brand_by_slug,
     get_published_product_by_slug,
@@ -17,6 +17,7 @@ from apps.catalog.selectors import (
     list_published_products,
     list_shades_in_use,
     list_sizes_in_use,
+    list_skin_types_in_use,
 )
 from apps.catalog.serializers import (
     BrandSerializer,
@@ -25,6 +26,7 @@ from apps.catalog.serializers import (
     ProductListSerializer,
     ShadeSerializer,
     SizeSerializer,
+    SkinTypeSerializer,
 )
 
 CATALOG_THROTTLE_SCOPE = "catalog"
@@ -106,3 +108,14 @@ class SizeListView(ListAPIView[Size]):
 
     def get_queryset(self) -> QuerySet[Size]:
         return list_sizes_in_use()
+
+
+class SkinTypeListView(ListAPIView[SkinType]):
+    permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = CATALOG_THROTTLE_SCOPE
+    serializer_class = SkinTypeSerializer
+    pagination_class = None
+
+    def get_queryset(self) -> QuerySet[SkinType]:
+        return list_skin_types_in_use()

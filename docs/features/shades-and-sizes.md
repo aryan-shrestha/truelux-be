@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ---
 
@@ -78,7 +78,7 @@ variant is still the stock and SKU unit.
   read it; the emails omit the shade when it is empty.
 - `apps/catalog/admin.py` — `ShadeAdmin`; "Generate variants" takes optional shades
   and creates shadeless variants when none are ticked. SKUs omit the shade part then.
-- Seed data: 14 sizes (grams, millilitres, `One size`) and 23 shades with hex codes.
+- Seed data: 15 sizes (grams, millilitres, `One size`) and 23 shades with hex codes.
 
 ---
 

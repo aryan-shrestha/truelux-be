@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ---
 
@@ -118,8 +118,10 @@ An unknown id is a 400 naming the field rather than a database error.
 - `size`: `name` (unique), `slug` (unique), `sort_order`.
 - `shade`: `name` (unique), `slug` (unique), `hex_code` (check
   `shade_hex_code_format`), `sort_order`.
+- `skin_type`: `name` (unique), `slug` (unique), `sort_order` (`skin-types.md`).
 - `product`: `name`, `slug` (unique), `description`, `brand` (`PROTECT`),
-  `category` (`PROTECT`), `base_price`, `is_published`, `sort_order`; index
+  `category` (`PROTECT`), `base_price`, `is_published`, `sort_order`, `skin_feel`,
+  `key_ingredients`, and `skin_types` (M2M through `product_skin_types`); index
   `product_published_crtd_idx`.
 - `product_variant`: `product` (`CASCADE`), `size` (`PROTECT`), `shade`
   (`PROTECT`, nullable), `sku` (unique), `stock_quantity`, `price_override`;

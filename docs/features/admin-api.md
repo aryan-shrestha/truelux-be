@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ---
 
@@ -23,7 +23,7 @@ What is included in this implementation?
 - Dashboard summary
 - Products: CRUD, publish toggle, variants (with stock), images (upload, reorder,
   set primary, delete)
-- Brands, categories, shades and sizes: CRUD
+- Brands, categories, shades, sizes and skin types: CRUD
 - Orders: list, detail, status transitions
 
 What is explicitly outside the scope?
@@ -86,8 +86,9 @@ and cash is collected at delivery. Cancellation restores stock (ADR 0004, unchan
   `delete_product`, `create_variant`, `update_variant`
   (stock through `set_variant_stock`), `delete_variant`, `add_product_image`,
   `update_product_image`, `delete_product_image`, and `create_taxonomy_entry`,
-  `update_taxonomy_entry`, `delete_taxonomy_entry` for brands, categories, shades and
-  sizes. Omitted slugs are derived from the name and suffixed `-2`, `-3`… until free.
+  `update_taxonomy_entry`, `delete_taxonomy_entry` for brands, categories, shades,
+  sizes and skin types. `create_product` / `update_product` take `skin_types` and
+  replace the set in the same transaction as the row (`skin-types.md`). Omitted slugs are derived from the name and suffixed `-2`, `-3`… until free.
 - `apps/orders/`: `OrderStatus.CONFIRMED` replaces `PAID`; `ALLOWED_TRANSITIONS` in
   `constants.py`; `confirm_order` replaces `mark_order_paid`; `transition_order`
   dispatches to `confirm_order`, `mark_order_shipped`, `mark_order_delivered` or
@@ -125,8 +126,8 @@ could never promote an image.
 
 **Decision**
 
-`brand_id`, `category_id`, `size_id`, `shade_id` and `parent_id` are
-`PrimaryKeyRelatedField`s; services receive model instances.
+`brand_id`, `category_id`, `size_id`, `shade_id`, `parent_id` and `skin_type_ids`
+are `PrimaryKeyRelatedField`s; services receive model instances.
 
 **Reason**
 
@@ -147,7 +148,9 @@ foreign-key failure reported as `409 conflict`.
 - A category cycle is a Django `ValidationError` from the service, which the handler
   returns as `400 validation_error` with `details.parent_id`.
 - Deleting a product, variant or taxonomy row relies on `PROTECT`: `ProtectedError`
-  subclasses `IntegrityError`, so the handler already answers `409 conflict`.
+  subclasses `IntegrityError`, so the handler already answers `409 conflict`. Skin
+  types are the exception: deleting one in use is `204` and detaches it.
+- `skin_type_ids` on `PATCH` replaces the whole set; omit it to keep the set.
 - Deleting an image deletes the row only; the stored asset is left behind.
 - The staff app must send `multipart/form-data` for image uploads and brand logos;
   every other write is JSON.
@@ -196,8 +199,9 @@ return bare arrays.
 | PATCH | `images/{id}/` | `alt_text`, `sort_order`, `is_primary` (promoting clears the old primary in one transaction) |
 | DELETE | `images/{id}/` | `204` |
 
-Product representation (list items omit `description`, `variants` and `images`, and
-add `variant_count`, `total_stock` and `primary_image_url`):
+Product representation (list items omit `description`, `skin_types`, `skin_feel`,
+`key_ingredients`, `variants` and `images`, and add `variant_count`, `total_stock` and
+`primary_image_url`):
 
 ```json
 {
@@ -210,6 +214,9 @@ add `variant_count`, `total_stock` and `primary_image_url`):
   "base_price": "3200.00",
   "is_published": true,
   "sort_order": 0,
+  "skin_types": [{ "id": "uuid", "name": "Combination", "slug": "combination" }],
+  "skin_feel": "Soothed, balanced, refreshed",
+  "key_ingredients": "Water (Aqua), Niacinamide",
   "variants": [
     { "id": "uuid", "sku": "LUM-SF-30-WB",
       "size": { "id": "uuid", "name": "30 ml" },
@@ -226,23 +233,25 @@ add `variant_count`, `total_stock` and `primary_image_url`):
 
 Product write body: `name`, `slug` (optional; derived from `name` and made unique
 when omitted), `description`, `brand_id`, `category_id`, `base_price`,
-`is_published`, `sort_order`. Variant write body: `sku`, `size_id`, `shade_id`
+`is_published`, `sort_order`, `skin_type_ids` (list of UUIDs, optional),
+`skin_feel` (≤ 200 characters), `key_ingredients`. Variant write body: `sku`, `size_id`, `shade_id`
 (nullable), `stock_quantity` (≥ 0), `price_override` (nullable, > 0).
 
 Publishing a product with no variants is rejected with
 `422 product_has_no_variants`.
 
-### Taxonomy: brands, categories, shades, sizes
+### Taxonomy: brands, categories, shades, sizes, skin types
 
 | Method | Path |
 |---|---|
-| GET, POST | `brands/`, `categories/`, `shades/`, `sizes/` |
-| PATCH, DELETE | `brands/{id}/`, `categories/{id}/`, `shades/{id}/`, `sizes/{id}/` |
+| GET, POST | `brands/`, `categories/`, `shades/`, `sizes/`, `skin-types/` |
+| PATCH, DELETE | `brands/{id}/`, `categories/{id}/`, `shades/{id}/`, `sizes/{id}/`, `skin-types/{id}/` |
 
 The GET endpoints return bare arrays and include inactive brands. Each item carries
-`id`, its model fields, and `product_count` (for categories and brands) or
-`variant_count` (for shades and sizes). `slug` is optional on write. Deleting a
-referenced row returns `409 conflict`. Brand `logo` uploads use `multipart/form-data`
+`id`, its model fields, and `product_count` (for categories, brands and skin types)
+or `variant_count` (for shades and sizes). `slug` is optional on write. Deleting a
+referenced row returns `409 conflict`, except a skin type, which is detached from its
+products (`204`). Brand `logo` uploads use `multipart/form-data`
 on POST or PATCH. Category writes accept `parent_id`; a category cannot be its own
 ancestor (`400 validation_error`).
 
@@ -294,11 +303,12 @@ tokens get `403`.
 - `test_products.py` — CRUD round trip; slug derivation and uniqueness; unknown
   brand is 400; publishing without variants is 422 on create and update; deleting
   an ordered product or variant is 409; list shape, filters and a constant three
-  queries; variant stock edits call `set_variant_stock` (mocked) and reject
+  queries; `skin_type_ids` set, kept, replaced and cleared, unknown id 400; variant stock edits call `set_variant_stock` (mocked) and reject
   negatives; image upload, primary promotion, wrong type and >5 MB are 400.
 - `test_taxonomy.py` — brand list includes inactive brands with counts; logo upload
   and slug derivation; shade hex validation; deleting a referenced brand, shade,
-  size or category is 409; duplicate names are 409; category cycles are 400.
+  size or category is 409; duplicate names are 409; category cycles are 400; skin
+  type CRUD with `product_count`, and deleting one detaches it.
 - `test_orders.py` — list shape, status/search/date filters, constant two queries;
   detail with `allowed_transitions` and `line_total`; each transition path; the
   documented 422 codes; cancel restores stock; `ALLOWED_TRANSITIONS` agrees with the

@@ -13,19 +13,20 @@ Redis were removed at the fork.
 | 1   | staff-identity      | Implemented | `features/staff-identity.md`      | —          | 2026-09-25   |
 | 2   | api-error-contract  | Implemented | `features/api-error-contract.md`  | 1          | 2026-09-25   |
 | 3   | media-storage       | Implemented | `features/media-storage.md`       | —          | 2026-09-25   |
-| 4   | product-catalog     | Implemented | `features/product-catalog.md`     | 2, 3       | 2026-09-25   |
-| 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-25   |
+| 4   | product-catalog     | Implemented | `features/product-catalog.md`     | 2, 3       | 2026-09-26   |
+| 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-26   |
 | 6   | orders              | Implemented | `features/orders.md`              | 2, 4       | 2026-09-25   |
 | 7   | checkout            | Implemented | `features/checkout.md`            | 6          | 2026-09-25   |
 | 8   | payments            | Implemented | `features/payments.md`            | 7          | 2026-09-25   |
 | 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-25   |
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
-| 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16 | 2026-09-25  |
+| 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-26 |
 | 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-25   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-25   |
-| 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-25   |
+| 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-25   |
-| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15 | 2026-09-25 |
+| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15 | 2026-09-26 |
+| 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
 
 `Depends on` refers to the `#` column of this table.
 
@@ -42,6 +43,9 @@ Redis were removed at the fork.
 - **Staff sign in over JWT** (#15, ADR 0012), and **the admin API** (#16, ADR 0013)
   gives the admin app everything the merchant does day to day. Catalogue writes are
   services shared with the Django admin (ADR 0002).
+- **Skin types and care details** (#17): products carry optional skin types, a skin
+  feel and key ingredients; `?skin_type=` and `/skin-types/` serve the storefront's
+  shop-by-skin-type menu, and `?category=<parent>` includes the parent's children.
 - Migrations were regenerated as fresh `0001_initial`s.
 
 ## Contracts with the front-end apps

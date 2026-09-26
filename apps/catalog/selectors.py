@@ -1,6 +1,6 @@
 from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
 
-from apps.catalog.models import Brand, Category, Product, ProductVariant, Shade, Size
+from apps.catalog.models import Brand, Category, Product, ProductVariant, Shade, Size, SkinType
 
 VISIBLE_PRODUCT = Q(is_published=True, brand__is_active=True)
 
@@ -40,7 +40,7 @@ def get_published_product_by_slug(*, slug: str) -> Product:
         _visible_products()
         .annotate(in_stock=_HAS_STOCK)
         .select_related("brand", "category")
-        .prefetch_related(ordered_variants, "images")
+        .prefetch_related(ordered_variants, "images", "skin_types")
         .get(slug=slug)
     )
 
@@ -79,3 +79,15 @@ def list_shades_in_use() -> QuerySet[Shade]:
 
 def list_sizes_in_use() -> QuerySet[Size]:
     return Size.objects.filter(_in_use_by_visible_product("size")).order_by("sort_order", "name")
+
+
+def list_skin_types_in_use() -> QuerySet[SkinType]:
+    return SkinType.objects.filter(
+        Exists(
+            Product.skin_types.through.objects.filter(
+                skintype=OuterRef("pk"),
+                product__is_published=True,
+                product__brand__is_active=True,
+            )
+        )
+    ).order_by("sort_order", "name")

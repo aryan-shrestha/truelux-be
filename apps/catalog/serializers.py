@@ -8,6 +8,7 @@ from apps.catalog.models import (
     ProductVariant,
     Shade,
     Size,
+    SkinType,
 )
 
 
@@ -21,6 +22,12 @@ class ShadeSerializer(serializers.ModelSerializer[Shade]):
     class Meta:
         model = Shade
         fields = ("name", "slug", "hex_code")
+
+
+class SkinTypeSerializer(serializers.ModelSerializer[SkinType]):
+    class Meta:
+        model = SkinType
+        fields = ("name", "slug")
 
 
 class BrandSummarySerializer(serializers.ModelSerializer[Brand]):
@@ -110,6 +117,15 @@ class ProductListSerializer(serializers.ModelSerializer[Product]):
 class ProductDetailSerializer(ProductListSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
+    skin_types = SkinTypeSerializer(many=True, read_only=True)
 
     class Meta(ProductListSerializer.Meta):
-        fields = (*ProductListSerializer.Meta.fields, "description", "images", "variants")
+        fields = (
+            *ProductListSerializer.Meta.fields,
+            "description",
+            "images",
+            "variants",
+            "skin_types",
+            "skin_feel",
+            "key_ingredients",
+        )

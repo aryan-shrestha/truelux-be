@@ -57,6 +57,19 @@ class Shade(UUIDModel, TimeStampedModel):
         return self.name
 
 
+class SkinType(UUIDModel, TimeStampedModel):
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=50, unique=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "skin_type"
+        ordering = ["sort_order", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Category(UUIDModel, TimeStampedModel):
     name = models.CharField(max_length=150)
     slug = models.SlugField(max_length=150, unique=True)
@@ -87,6 +100,9 @@ class Product(UUIDModel, TimeStampedModel):
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
     is_published = models.BooleanField(default=False)
     sort_order = models.PositiveIntegerField(default=0)
+    skin_types = models.ManyToManyField(SkinType, blank=True, related_name="products")
+    skin_feel = models.CharField(max_length=200, blank=True)
+    key_ingredients = models.TextField(blank=True)
 
     class Meta:
         db_table = "product"

@@ -22,6 +22,7 @@ from apps.catalog.models import (
     ProductVariant,
     Shade,
     Size,
+    SkinType,
 )
 from apps.orders.constants import OrderStatus
 from apps.orders.models import Order
@@ -50,7 +51,7 @@ def get_product(*, product_id: UUID) -> Product:
     )
     return (
         Product.objects.select_related("brand", "category")
-        .prefetch_related(variants, "images")
+        .prefetch_related(variants, "images", "skin_types")
         .get(pk=product_id)
     )
 
@@ -81,6 +82,10 @@ def list_shades() -> QuerySet[Shade]:
 
 def list_sizes() -> QuerySet[Size]:
     return Size.objects.annotate(variant_count=Count("variants")).order_by("sort_order", "name")
+
+
+def list_skin_types() -> QuerySet[SkinType]:
+    return SkinType.objects.annotate(product_count=Count("products")).order_by("sort_order", "name")
 
 
 def list_orders() -> QuerySet[Order]:

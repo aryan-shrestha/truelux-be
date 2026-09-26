@@ -14,6 +14,7 @@ from apps.catalog.models import (
     ProductVariant,
     Shade,
     Size,
+    SkinType,
 )
 from apps.orders.constants import ALLOWED_TRANSITIONS, OrderStatus
 from apps.orders.models import Order, OrderItem
@@ -50,6 +51,12 @@ class ShadeRefSerializer(serializers.ModelSerializer[Shade]):
     class Meta:
         model = Shade
         fields = ("id", "name", "hex_code")
+
+
+class SkinTypeRefSerializer(serializers.ModelSerializer[SkinType]):
+    class Meta:
+        model = SkinType
+        fields = ("id", "name", "slug")
 
 
 class AdminVariantSerializer(serializers.ModelSerializer[ProductVariant]):
@@ -106,6 +113,7 @@ class AdminProductListSerializer(serializers.ModelSerializer[Product]):
 class AdminProductDetailSerializer(serializers.ModelSerializer[Product]):
     brand = BrandRefSerializer(read_only=True)
     category = CategoryRefSerializer(read_only=True)
+    skin_types = SkinTypeRefSerializer(many=True, read_only=True)
     variants = AdminVariantSerializer(many=True, read_only=True)
     images = AdminImageSerializer(many=True, read_only=True)
 
@@ -121,6 +129,9 @@ class AdminProductDetailSerializer(serializers.ModelSerializer[Product]):
             "base_price",
             "is_published",
             "sort_order",
+            "skin_types",
+            "skin_feel",
+            "key_ingredients",
             "variants",
             "images",
             "created_at",
@@ -141,6 +152,11 @@ class ProductWriteSerializer(serializers.Serializer[Product]):
     )
     is_published = serializers.BooleanField(required=False)
     sort_order = serializers.IntegerField(min_value=0, required=False)
+    skin_type_ids = serializers.PrimaryKeyRelatedField(
+        queryset=SkinType.objects.all(), source="skin_types", many=True, required=False
+    )
+    skin_feel = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    key_ingredients = serializers.CharField(required=False, allow_blank=True)
 
 
 class VariantWriteSerializer(serializers.Serializer[ProductVariant]):
@@ -246,6 +262,20 @@ class AdminSizeSerializer(serializers.ModelSerializer[Size]):
 
 
 class SizeWriteSerializer(serializers.Serializer[Size]):
+    name = serializers.CharField(max_length=50)
+    slug = serializers.SlugField(max_length=50, required=False, allow_blank=True)
+    sort_order = serializers.IntegerField(min_value=0, required=False)
+
+
+class AdminSkinTypeSerializer(serializers.ModelSerializer[SkinType]):
+    product_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = SkinType
+        fields = ("id", "name", "slug", "sort_order", "product_count")
+
+
+class SkinTypeWriteSerializer(serializers.Serializer[SkinType]):
     name = serializers.CharField(max_length=50)
     slug = serializers.SlugField(max_length=50, required=False, allow_blank=True)
     sort_order = serializers.IntegerField(min_value=0, required=False)

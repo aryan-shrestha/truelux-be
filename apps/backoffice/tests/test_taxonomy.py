@@ -2,7 +2,7 @@ import pytest
 from django.urls import reverse
 
 from apps.backoffice.tests.conftest import image_upload
-from apps.catalog.models import Brand, Shade, Size
+from apps.catalog.models import Brand, Shade, Size, SkinType
 from apps.catalog.tests.factories import (
     BrandFactory,
     CategoryFactory,
@@ -10,6 +10,7 @@ from apps.catalog.tests.factories import (
     ProductVariantFactory,
     ShadeFactory,
     SizeFactory,
+    SkinTypeFactory,
 )
 
 pytestmark = pytest.mark.django_db
@@ -155,3 +156,48 @@ def test_deleting_a_category_with_products_is_a_409(staff_client):
     response = staff_client.delete(reverse("v1:admin-category-detail", args=[category.pk]))
 
     assert response.status_code == 409
+
+
+def test_skin_type_crud_with_product_counts(staff_client):
+    created = staff_client.post(reverse("v1:admin-skin-type-list"), {"name": "Combination"})
+    skin_type = SkinType.objects.get(pk=created.data["id"])
+    ProductFactory.create_batch(2, is_published=False)[0].skin_types.add(skin_type)
+    patched = staff_client.patch(
+        reverse("v1:admin-skin-type-detail", args=[skin_type.pk]), {"sort_order": 3}
+    )
+    listed = staff_client.get(reverse("v1:admin-skin-type-list"))
+
+    assert created.status_code == 201
+    assert created.data["slug"] == "combination"
+    assert created.data["product_count"] == 0
+    assert patched.status_code == 200
+    assert listed.data == [
+        {
+            "id": str(skin_type.pk),
+            "name": "Combination",
+            "slug": "combination",
+            "sort_order": 3,
+            "product_count": 1,
+        }
+    ]
+
+
+def test_a_duplicate_skin_type_name_is_a_409(staff_client):
+    SkinTypeFactory(name="Dry", slug="parched")
+
+    response = staff_client.post(reverse("v1:admin-skin-type-list"), {"name": "Dry"})
+
+    assert response.status_code == 409
+
+
+def test_deleting_a_skin_type_detaches_it_from_its_products(staff_client):
+    skin_type = SkinTypeFactory()
+    kept = SkinTypeFactory()
+    product = ProductFactory()
+    product.skin_types.set([skin_type, kept])
+
+    response = staff_client.delete(reverse("v1:admin-skin-type-detail", args=[skin_type.pk]))
+
+    assert response.status_code == 204
+    assert not SkinType.objects.filter(pk=skin_type.pk).exists()
+    assert list(product.skin_types.all()) == [kept]

@@ -33,15 +33,20 @@ A product needs a brand and a category, and each thing you sell needs a size.
 - **Brands**: every brand you stock, with its logo. A brand you switch off
   (**inactive**) disappears from the shop together with all its products, without
   deleting anything.
-- **Categories**: for example Skincare, with Cleansers and Serums under it.
+- **Categories**: for example Skincare, with Cleanse and Tone under it. Shoppers who
+  pick Skincare also see everything in the categories under it.
 - **Sizes**: every volume or weight you sell (`30 ml`, `100 g`), or `One size`.
   The *sort order* number decides the order they appear in; small numbers first.
 - **Shades**: only for products that come in colours, such as foundations and
   lipsticks. Each shade has a swatch colour written as `#RRGGBB`. Skincare usually
   has no shade at all.
+- **Skin types**: Normal, Dry, Oily and so on. Tick the ones each skincare or body
+  product suits; shoppers can filter by them. A product can also carry a short
+  *skin feel* ("Soothed, balanced, refreshed") and its *key ingredients*.
 
 A size, shade, brand or category that is in use cannot be deleted. Rename it or
-switch the brand off instead.
+switch the brand off instead. Deleting a skin type is allowed: it is simply removed
+from the products that had it.
 
 ### 2. Decide who gets a staff account
 

@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ---
 
@@ -31,15 +31,30 @@ What is explicitly outside the scope?
 
 - `apps/catalog/management/commands/_seed_catalogue.py` — the data: 8 invented
   brands (Lumière, Verde Botanics, Kaya Rose, Nordic Dew, Saffron & Co., Aurum,
-  Mistral, Bloom Theory), the category tree Skincare (Cleansers, Serums,
-  Moisturisers), Makeup (Face, Eyes, Lips), Haircare, Fragrance, Body; 14 sizes;
-  23 shades with hex codes; 33 products priced in NPR. Foundations and lipsticks have
-  4–6 shades; perfumes 50 and 100 ml; skincare is shadeless and sold by size.
+  Mistral, Bloom Theory); the category tree of the storefront design's mega-menu,
+  22 categories:
+  - **Skincare** › Cleanse, Exfoliate, Treat & Masque, Tone, Hydrate, Eyes & Lips,
+    Sun Care
+  - **Makeup** › Face, Eyes, Lips
+  - **Body** › Creams, Oils & Scrubs; Shower & Bath; Balms; Hands & Feet; Sun
+    Protection
+  - **Fragrance** › Perfume, Essential Oils
+  - **Haircare** (no children)
+
+  15 sizes; 23 shades with hex codes; 6 skin types (Normal, Dry, Oily, Combination,
+  Sensitive, Mature); 48 products priced in NPR, at least two published in every child
+  category. Foundations and lipsticks have 4–6 shades; perfumes 50 and 100 ml;
+  skincare is shadeless and sold by size. Every skincare and body product has 1–4
+  skin types, a `skin_feel` and an INCI-style `key_ingredients` line; makeup,
+  fragrance and haircare have none.
 - `apps/catalog/management/commands/seed_demo.py` — creates the rows with
   `get_or_create`, generates each product image (800×1000) and brand logo
   (400×400) as a PNG with Pillow: a gradient in the brand's palette with the
   initials and an ASCII-folded brand caption. No network access, no image files in
-  the repository. `--flush` deletes the seeded products.
+  the repository. `--flush` deletes the seeded products, then every seeded category
+  (current or retired: `RETIRED_CATEGORY_SLUGS` lists the earlier Cleansers, Serums
+  and Moisturisers) that no longer holds a product, so the tree is recreated exactly.
+  Brands, sizes, shades and skin types are never flushed.
 - `apps/orders/management/commands/seed_orders.py` — 17 orders placed through
   `place_order`, moved through `transition_order`, COD payments recorded (completed
   for delivered orders), then back-dated across the last 29 days so the dashboard has
@@ -88,6 +103,11 @@ that produces them; catalogue rows have no business rule beyond constraints.
 - Reseeding locally leaves the previous generated files in `media/` (the storage
   appends a suffix); delete the folder if it matters.
 - Seeded emails use `seed.invalid`, which can never resolve.
+- Without `--flush`, `seed_demo` only adds: `get_or_create` never re-parents or
+  renames an existing category, so a database seeded with the old tree needs
+  `make reseed` to show the new one.
+- A seeded category that still holds a product the merchant added is kept by
+  `--flush`, with whatever parent and name it has.
 
 ---
 
@@ -100,8 +120,11 @@ DEBUG only.
 ## Tests
 
 - `apps/catalog/tests/test_seed_demo.py` — DEBUG guard, brands with logos, the
-  category tree, shade counts, perfume sizes, shadeless skincare, the awkward cases,
-  idempotence, flush, one primary per product, generated PNGs.
+  category tree in menu order, two published products per child category, skin types
+  and care details on skincare and body products, shade counts, perfume sizes,
+  shadeless skincare, the awkward cases, idempotence, flush (including a retired
+  category and a re-parented one, and keeping a category a merchant product uses),
+  one primary per product, generated PNGs.
 - `apps/orders/tests/test_seed_orders.py` — every status present, a payment per
   order, cash collected only for delivered orders, stock arithmetic, flush
   behaviour, the reseed sequence, dates spanning the dashboard window.

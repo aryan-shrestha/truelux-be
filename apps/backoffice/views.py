@@ -28,6 +28,7 @@ from apps.backoffice.serializers import (
     AdminProductListSerializer,
     AdminShadeSerializer,
     AdminSizeSerializer,
+    AdminSkinTypeSerializer,
     AdminVariantSerializer,
     BrandWriteSerializer,
     CategoryWriteSerializer,
@@ -37,11 +38,12 @@ from apps.backoffice.serializers import (
     ProductWriteSerializer,
     ShadeWriteSerializer,
     SizeWriteSerializer,
+    SkinTypeWriteSerializer,
     TransitionSerializer,
     VariantWriteSerializer,
 )
 from apps.catalog.filters import DeterministicOrderingFilter
-from apps.catalog.models import Brand, Category, Product, Shade, Size
+from apps.catalog.models import Brand, Category, Product, Shade, Size, SkinType
 from apps.catalog.services import (
     add_product_image,
     create_product,
@@ -101,8 +103,9 @@ class ProductListView(StaffAPIView, ListAPIView[Product]):
     def post(self, request: Request) -> Response:
         fields = _validated(ProductWriteSerializer, request)
         is_published = fields.pop("is_published", False)
+        skin_types = fields.pop("skin_types", None)
 
-        product = create_product(fields=fields, is_published=is_published)
+        product = create_product(fields=fields, is_published=is_published, skin_types=skin_types)
 
         return Response(
             AdminProductDetailSerializer(selectors.get_product(product_id=product.pk)).data,
@@ -121,11 +124,13 @@ class ProductDetailView(StaffAPIView):
     def patch(self, request: Request, product_id: UUID) -> Response:
         fields = _validated(ProductWriteSerializer, request, partial=True)
         is_published = fields.pop("is_published", None)
+        skin_types = fields.pop("skin_types", None)
 
         update_product(
             product=selectors.get_product_row(product_id=product_id),
             fields=fields,
             is_published=is_published,
+            skin_types=skin_types,
         )
 
         return Response(
@@ -208,7 +213,9 @@ class ImageDetailView(StaffAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class TaxonomyListView[E: (Brand, Category, Shade, Size)](StaffAPIView, GenericAPIView[E]):
+class TaxonomyListView[E: (Brand, Category, Shade, Size, SkinType)](
+    StaffAPIView, GenericAPIView[E]
+):
     model: type[E]
     write_serializer_class: ClassVar[type[BaseSerializer[Any]]]
     pagination_class = None
@@ -227,7 +234,9 @@ class TaxonomyListView[E: (Brand, Category, Shade, Size)](StaffAPIView, GenericA
         )
 
 
-class TaxonomyDetailView[E: (Brand, Category, Shade, Size)](StaffAPIView, GenericAPIView[E]):
+class TaxonomyDetailView[E: (Brand, Category, Shade, Size, SkinType)](
+    StaffAPIView, GenericAPIView[E]
+):
     model: type[E]
     write_serializer_class: ClassVar[type[BaseSerializer[Any]]]
 
@@ -347,6 +356,32 @@ class SizeDetailView(TaxonomyDetailView[Size]):
 
     def get_queryset(self) -> QuerySet[Size]:
         return selectors.list_sizes()
+
+
+@extend_schema_view(
+    get=extend_schema(responses={200: AdminSkinTypeSerializer(many=True)}),
+    post=extend_schema(request=SkinTypeWriteSerializer, responses={201: AdminSkinTypeSerializer}),
+)
+class SkinTypeListView(TaxonomyListView[SkinType]):
+    model = SkinType
+    serializer_class = AdminSkinTypeSerializer
+    write_serializer_class = SkinTypeWriteSerializer
+
+    def get_queryset(self) -> QuerySet[SkinType]:
+        return selectors.list_skin_types()
+
+
+@extend_schema_view(
+    patch=extend_schema(request=SkinTypeWriteSerializer, responses={200: AdminSkinTypeSerializer}),
+    delete=extend_schema(responses={204: None}),
+)
+class SkinTypeDetailView(TaxonomyDetailView[SkinType]):
+    model = SkinType
+    serializer_class = AdminSkinTypeSerializer
+    write_serializer_class = SkinTypeWriteSerializer
+
+    def get_queryset(self) -> QuerySet[SkinType]:
+        return selectors.list_skin_types()
 
 
 class OrderListView(StaffAPIView, ListAPIView[Order]):

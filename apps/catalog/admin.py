@@ -14,6 +14,7 @@ from apps.catalog.models import (
     ProductVariant,
     Shade,
     Size,
+    SkinType,
 )
 from apps.catalog.services import set_variant_stock, update_product, update_product_image
 from apps.core.exceptions import DomainError
@@ -70,6 +71,11 @@ class ShadeAdmin(LookupAdmin):
     list_display = ("name", "slug", "hex_code", "sort_order")
 
 
+@admin.register(SkinType)
+class SkinTypeAdmin(LookupAdmin):
+    pass
+
+
 @admin.register(Category)
 class CategoryAdmin(LookupAdmin):
     list_display = ("name", "slug", "parent", "sort_order")
@@ -96,7 +102,8 @@ class AdjustStockForm(forms.Form):
 class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptable at runtime
     inlines = (ProductVariantInline, ProductImageInline)
     list_display = ("name", "brand", "category", "base_price", "is_published", "total_stock")
-    list_filter = ("is_published", "brand", "category")
+    list_filter = ("is_published", "brand", "category", "skin_types")
+    filter_horizontal = ("skin_types",)
     ordering = ("sort_order", "-created_at")
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name", "slug")

@@ -1,11 +1,11 @@
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from django.core.files import File
 from django.db import transaction
 
 from apps.catalog.exceptions import ProductHasNoVariants
-from apps.catalog.models import Product, ProductImage, ProductVariant
+from apps.catalog.models import Product, ProductImage, ProductVariant, SkinType
 from apps.catalog.services._writes import assign_fields, fill_missing_slug
 from apps.catalog.services.stock import set_variant_stock
 from apps.core.logging import get_logger
@@ -13,7 +13,17 @@ from apps.core.logging import get_logger
 logger = get_logger(__name__)
 
 PRODUCT_FIELDS = frozenset(
-    {"name", "slug", "description", "brand", "category", "base_price", "sort_order"}
+    {
+        "name",
+        "slug",
+        "description",
+        "brand",
+        "category",
+        "base_price",
+        "sort_order",
+        "skin_feel",
+        "key_ingredients",
+    }
 )
 VARIANT_FIELDS = frozenset({"sku", "size", "shade", "price_override"})
 IMAGE_FIELDS = frozenset({"alt_text", "sort_order"})
@@ -24,7 +34,12 @@ def _ensure_publishable(product: Product) -> None:
         raise ProductHasNoVariants(details={"product_id": str(product.pk)})
 
 
-def create_product(*, fields: Mapping[str, Any], is_published: bool = False) -> Product:
+def create_product(
+    *,
+    fields: Mapping[str, Any],
+    is_published: bool = False,
+    skin_types: Iterable[SkinType] | None = None,
+) -> Product:
     """Raises ProductHasNoVariants when asked to publish: a new product has none yet."""
     if is_published:
         raise ProductHasNoVariants()
@@ -32,14 +47,21 @@ def create_product(*, fields: Mapping[str, Any], is_published: bool = False) -> 
     product = Product()
     assign_fields(product, fields, PRODUCT_FIELDS)
     fill_missing_slug(product)
-    product.save()
+    with transaction.atomic():
+        product.save()
+        if skin_types is not None:
+            product.skin_types.set(skin_types)
 
     logger.info("catalog.product_created", product_id=str(product.pk))
     return product
 
 
 def update_product(
-    *, product: Product, fields: Mapping[str, Any], is_published: bool | None = None
+    *,
+    product: Product,
+    fields: Mapping[str, Any],
+    is_published: bool | None = None,
+    skin_types: Iterable[SkinType] | None = None,
 ) -> Product:
     """Raises ProductHasNoVariants when publishing a product that has no variants."""
     assign_fields(product, fields, PRODUCT_FIELDS)
@@ -48,7 +70,10 @@ def update_product(
         if is_published:
             _ensure_publishable(product)
         product.is_published = is_published
-    product.save()
+    with transaction.atomic():
+        product.save()
+        if skin_types is not None:
+            product.skin_types.set(skin_types)
 
     logger.info("catalog.product_updated", product_id=str(product.pk))
     return product

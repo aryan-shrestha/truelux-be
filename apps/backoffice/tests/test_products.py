@@ -15,6 +15,7 @@ from apps.catalog.tests.factories import (
     ProductVariantFactory,
     ShadeFactory,
     SizeFactory,
+    SkinTypeFactory,
 )
 from apps.orders.tests.factories import OrderItemFactory
 
@@ -51,6 +52,46 @@ def test_product_crud_round_trip(staff_client):
     assert fetched.data["sort_order"] == 3
     assert deleted.status_code == 204
     assert not Product.objects.filter(pk=product_id).exists()
+
+
+def test_product_write_sets_skin_types_and_care_fields(staff_client):
+    dry = SkinTypeFactory(name="Dry", slug="dry", sort_order=1)
+    oily = SkinTypeFactory(name="Oily", slug="oily", sort_order=2)
+
+    created = staff_client.post(
+        reverse("v1:admin-product-list"),
+        _product_payload(
+            skin_type_ids=[str(oily.pk), str(dry.pk)],
+            skin_feel="Soothed, balanced, refreshed",
+            key_ingredients="Water (Aqua), Niacinamide",
+        ),
+    )
+    detail_url = reverse("v1:admin-product-detail", args=[created.data["id"]])
+    renamed = staff_client.patch(detail_url, {"name": "Renamed"})
+    replaced = staff_client.patch(detail_url, {"skin_type_ids": [str(oily.pk)]})
+    cleared = staff_client.patch(detail_url, {"skin_type_ids": []})
+
+    assert created.status_code == 201
+    assert created.data["skin_types"] == [
+        {"id": str(dry.pk), "name": "Dry", "slug": "dry"},
+        {"id": str(oily.pk), "name": "Oily", "slug": "oily"},
+    ]
+    assert created.data["skin_feel"] == "Soothed, balanced, refreshed"
+    assert created.data["key_ingredients"] == "Water (Aqua), Niacinamide"
+    assert len(renamed.data["skin_types"]) == 2
+    assert [skin_type["slug"] for skin_type in replaced.data["skin_types"]] == ["oily"]
+    assert cleared.data["skin_types"] == []
+
+
+def test_an_unknown_skin_type_id_is_a_400(staff_client):
+    response = staff_client.post(
+        reverse("v1:admin-product-list"),
+        _product_payload(skin_type_ids=["00000000-0000-0000-0000-000000000000"]),
+    )
+
+    assert response.status_code == 400
+    assert "skin_type_ids" in response.data["error"]["details"]
+    assert not Product.objects.exists()
 
 
 def test_a_derived_slug_is_made_unique(staff_client):

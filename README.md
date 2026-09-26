@@ -27,7 +27,7 @@ cp .env.example .env        # fill the four blanks: secret key (32+ chars) and t
 
 make install                # uv sync
 make migrate                # migrations + the django_cache table
-make seed                   # 8 brands, 33 products, 17 orders (DEBUG only)
+make seed                   # 8 brands, 48 products, 17 orders (DEBUG only)
 make seed-staff             # staff@truelux.com / truelux-demo-staff (from .env)
 make run                    # http://localhost:8000
 ```

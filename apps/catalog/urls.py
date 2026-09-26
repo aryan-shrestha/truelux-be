@@ -7,6 +7,7 @@ from apps.catalog.views import (
     ProductViewSet,
     ShadeListView,
     SizeListView,
+    SkinTypeListView,
 )
 
 # SimpleRouter: DefaultRouter adds an API-root view this API does not publish.
@@ -18,5 +19,6 @@ urlpatterns = [
     path("categories/", CategoryListView.as_view(), name="category-list"),
     path("shades/", ShadeListView.as_view(), name="shade-list"),
     path("sizes/", SizeListView.as_view(), name="size-list"),
+    path("skin-types/", SkinTypeListView.as_view(), name="skin-type-list"),
     *router.urls,
 ]

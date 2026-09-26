@@ -100,9 +100,9 @@ def test_product_detail_query_count_is_constant(
 ):
     product = _product_with_variants(variant_count=variant_count)
 
-    # product + variants (size and shade joined) + images. Without the inner
-    # select_related this grows by two per variant.
-    with django_assert_num_queries(3):
+    # product + variants (size and shade joined) + images + skin types. Without the
+    # inner select_related this grows by two per variant.
+    with django_assert_num_queries(4):
         response = api_client.get(reverse("v1:product-detail", args=[product.slug]))
 
     assert len(response.data["variants"]) == variant_count

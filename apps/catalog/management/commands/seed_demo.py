@@ -1,5 +1,5 @@
 """Populate a development cosmetics catalogue: brands, categories, sizes, shades,
-products with variants, and generated placeholder images.
+skin types, products with variants, and generated placeholder images.
 """
 
 import unicodedata
@@ -17,14 +17,30 @@ from apps.catalog.management.commands._seed_catalogue import (
     BRANDS,
     CATEGORIES,
     PRODUCTS,
+    RETIRED_CATEGORY_SLUGS,
     SHADES,
     SIZES,
+    SKIN_TYPES,
     BrandSpec,
     ProductSpec,
 )
-from apps.catalog.models import Brand, Category, Product, ProductImage, ProductVariant, Shade, Size
+from apps.catalog.models import (
+    Brand,
+    Category,
+    Product,
+    ProductImage,
+    ProductVariant,
+    Shade,
+    Size,
+    SkinType,
+)
 
 SEEDED_SLUGS = tuple(spec.slug for spec in PRODUCTS)
+SEEDED_CATEGORY_SLUGS = (
+    *(slug for _, slug, _ in CATEGORIES),
+    *(child_slug for _, _, children in CATEGORIES for _, child_slug in children),
+    *RETIRED_CATEGORY_SLUGS,
+)
 IMAGE_SIZE = (800, 1000)
 LOGO_SIZE = (400, 400)
 
@@ -76,7 +92,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--flush",
             action="store_true",
-            help="Delete the products this command created before seeding again.",
+            help="Delete the products and categories this command created before seeding again.",
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
@@ -91,19 +107,21 @@ class Command(BaseCommand):
             brands = self._seed_brands()
             sizes = self._seed_sizes()
             shades = self._seed_shades()
+            skin_types = self._seed_skin_types()
             categories = self._seed_categories()
-            created, existing = self._seed_products(brands, sizes, shades, categories)
+            created, existing = self._seed_products(brands, sizes, shades, skin_types, categories)
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seeded {len(brands)} brands, {len(categories)} categories, {len(sizes)} sizes, "
-                f"{len(shades)} shades, {created} new products ({existing} already present)."
+                f"{len(shades)} shades, {len(skin_types)} skin types, {created} new products "
+                f"({existing} already present)."
             )
         )
 
     def _flush(self) -> None:
-        # Brands and lookups are left alone: PROTECT keeps them while anything refers
-        # to them, and get_or_create makes re-seeding them free.
+        # Brands, sizes, shades and skin types are left alone: PROTECT keeps most of them
+        # while anything refers to them, and get_or_create makes re-seeding them free.
         try:
             deleted, _ = Product.objects.filter(slug__in=SEEDED_SLUGS).delete()
         except ProtectedError as exc:
@@ -112,6 +130,13 @@ class Command(BaseCommand):
                 "Run `manage.py seed_orders --flush-only` first."
             ) from exc
         self.stdout.write(f"Flushed {deleted} rows for {len(SEEDED_SLUGS)} seeded products.")
+
+        # Categories are recreated so a reshaped tree replaces the old one; a category
+        # still holding a product the merchant added is kept.
+        deleted, _ = Category.objects.filter(
+            slug__in=SEEDED_CATEGORY_SLUGS, products__isnull=True
+        ).delete()
+        self.stdout.write(f"Flushed {deleted} seeded categories.")
 
     def _seed_brands(self) -> dict[str, Brand]:
         brands: dict[str, Brand] = {}
@@ -153,6 +178,15 @@ class Command(BaseCommand):
             shades[slug] = shade
         return shades
 
+    def _seed_skin_types(self) -> dict[str, SkinType]:
+        skin_types: dict[str, SkinType] = {}
+        for order, (name, slug) in enumerate(SKIN_TYPES):
+            skin_type, _ = SkinType.objects.get_or_create(
+                slug=slug, defaults={"name": name, "sort_order": order}
+            )
+            skin_types[slug] = skin_type
+        return skin_types
+
     def _seed_categories(self) -> dict[str, Category]:
         categories: dict[str, Category] = {}
         for order, (name, slug, children) in enumerate(CATEGORIES):
@@ -174,6 +208,7 @@ class Command(BaseCommand):
         brands: dict[str, Brand],
         sizes: dict[str, Size],
         shades: dict[str, Shade],
+        skin_types: dict[str, SkinType],
         categories: dict[str, Category],
     ) -> tuple[int, int]:
         created_count = 0
@@ -190,12 +225,15 @@ class Command(BaseCommand):
                     "base_price": spec.base_price,
                     "is_published": spec.is_published,
                     "sort_order": order * 10,
+                    "skin_feel": spec.skin_feel,
+                    "key_ingredients": spec.key_ingredients,
                 },
             )
             if not created:
                 continue
 
             created_count += 1
+            product.skin_types.set(skin_types[slug] for slug in spec.skin_types)
             brand_spec = brand_specs[spec.brand]
             self._seed_variants(product, spec, brand_spec, sizes, shades)
             self._seed_images(product, spec, brand_spec)

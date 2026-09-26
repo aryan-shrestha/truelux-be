@@ -38,6 +38,12 @@ urlpatterns = [
     path("shades/<uuid:entry_id>/", views.ShadeDetailView.as_view(), name="admin-shade-detail"),
     path("sizes/", views.SizeListView.as_view(), name="admin-size-list"),
     path("sizes/<uuid:entry_id>/", views.SizeDetailView.as_view(), name="admin-size-detail"),
+    path("skin-types/", views.SkinTypeListView.as_view(), name="admin-skin-type-list"),
+    path(
+        "skin-types/<uuid:entry_id>/",
+        views.SkinTypeDetailView.as_view(),
+        name="admin-skin-type-detail",
+    ),
     path("orders/", views.OrderListView.as_view(), name="admin-order-list"),
     path("orders/<uuid:order_id>/", views.OrderDetailView.as_view(), name="admin-order-detail"),
     path(

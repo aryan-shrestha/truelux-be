@@ -2,13 +2,13 @@ from collections.abc import Sequence
 from typing import Any
 
 import django_filters
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from drf_spectacular.utils import extend_schema_field
 from rest_framework.filters import OrderingFilter
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
-from apps.catalog.models import Brand, Product
+from apps.catalog.models import Brand, Product, SkinType
 
 
 @extend_schema_field({"type": "array", "items": {"type": "string"}})
@@ -22,7 +22,12 @@ class ProductFilter(django_filters.FilterSet):  # type: ignore[misc]  # django-f
         to_field_name="slug",
         queryset=Brand.objects.all(),
     )
-    category = django_filters.CharFilter(field_name="category__slug")
+    category = django_filters.CharFilter(method="filter_by_category")
+    skin_type = SlugMultipleChoiceFilter(
+        field_name="skin_types__slug",
+        to_field_name="slug",
+        queryset=SkinType.objects.all(),
+    )
     size = django_filters.CharFilter(method="filter_by_variant")
     shade = django_filters.CharFilter(method="filter_by_variant")
     min_price = django_filters.NumberFilter(field_name="base_price", lookup_expr="gte")
@@ -31,7 +36,21 @@ class ProductFilter(django_filters.FilterSet):  # type: ignore[misc]  # django-f
 
     class Meta:
         model = Product
-        fields = ("brand", "category", "size", "shade", "min_price", "max_price", "in_stock")
+        fields = (
+            "brand",
+            "category",
+            "skin_type",
+            "size",
+            "shade",
+            "min_price",
+            "max_price",
+            "in_stock",
+        )
+
+    def filter_by_category(
+        self, queryset: QuerySet[Product], name: str, value: str
+    ) -> QuerySet[Product]:
+        return queryset.filter(Q(category__slug=value) | Q(category__parent__slug=value))
 
     def filter_by_variant(
         self, queryset: QuerySet[Product], name: str, value: str

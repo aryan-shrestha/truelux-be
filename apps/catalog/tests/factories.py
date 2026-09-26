@@ -11,6 +11,7 @@ from apps.catalog.models import (
     ProductVariant,
     Shade,
     Size,
+    SkinType,
 )
 
 
@@ -37,6 +38,14 @@ class ShadeFactory(DjangoModelFactory[Shade]):
     name = factory.Sequence(lambda n: f"Shade {n}")
     slug = factory.Sequence(lambda n: f"shade-{n}")
     hex_code = "#D8A47F"
+
+
+class SkinTypeFactory(DjangoModelFactory[SkinType]):
+    class Meta:
+        model = SkinType
+
+    name = factory.Sequence(lambda n: f"Skin type {n}")
+    slug = factory.Sequence(lambda n: f"skin-type-{n}")
 
 
 class CategoryFactory(DjangoModelFactory[Category]):

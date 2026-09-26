@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 This document describes the current architecture of the system.
 
@@ -264,9 +264,13 @@ Size                      (apps/catalog)
 Shade                     (apps/catalog, ADR 0010)
  └── name, slug, hex_code (#RRGGBB check), sort_order
 
+SkinType                  (apps/catalog)
+ └── name, slug, sort_order        deleting one detaches it from products
+
 Product                   (apps/catalog)
  ├── brand (PROTECT) / category (PROTECT)
  ├── base_price, is_published      publishing needs a variant
+ ├── skin_types (M2M, optional), skin_feel, key_ingredients
  ├── ProductVariant (CASCADE)      the sellable unit, see ADR 0001
  │    ├── size (PROTECT) / shade (PROTECT, nullable)
  │    ├── unique (product, size, shade) NULLS NOT DISTINCT
