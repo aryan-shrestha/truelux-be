@@ -14,9 +14,11 @@ from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
+from django.test.utils import override_settings
 from django.utils import timezone
 
-from apps.catalog.models import ProductVariant
+from apps.catalog.management.commands.seed_demo import SEEDED_SLUGS
+from apps.catalog.models import Product, ProductVariant
 from apps.orders.constants import OrderStatus, PaymentMethod
 from apps.orders.models import Order
 from apps.orders.services import place_order, transition_order
@@ -81,21 +83,37 @@ ORDERS: tuple[OrderSpec, ...] = (
 
 
 class Command(BaseCommand):
-    help = "Populate a development order history. Refuses to run outside DEBUG."
+    help = (
+        "Populate a development order history. Refuses to run outside DEBUG, unless "
+        "--deploy while SEED_DEMO_DATA is true."
+    )
 
     def add_arguments(self, parser: CommandParser) -> None:
-        parser.add_argument(
+        mode = parser.add_mutually_exclusive_group()
+        mode.add_argument(
             "--flush",
             action="store_true",
             help="Delete the orders this command created before seeding again.",
         )
-        parser.add_argument(
+        mode.add_argument(
             "--flush-only",
             action="store_true",
             help="Delete the orders this command created and stop, releasing the catalogue.",
         )
+        mode.add_argument(
+            "--deploy",
+            action="store_true",
+            help=(
+                "Seed only when there are no orders and every product is a seeded one, "
+                "and only when SEED_DEMO_DATA is true."
+            ),
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        if options["deploy"]:
+            self._deploy()
+            return
+
         # The same refusal seed_demo makes, for the same reason: a mistyped
         # DJANGO_SETTINGS_MODULE must not put invented orders in a real shop.
         if not settings.DEBUG:
@@ -110,6 +128,30 @@ class Command(BaseCommand):
         if options["flush_only"]:
             return
 
+        self._seed()
+        self.stdout.write(
+            "The confirmation emails above are the console backend working, not an error."
+        )
+
+    def _deploy(self) -> None:
+        if not settings.SEED_DEMO_DATA:
+            self.stdout.write("SEED_DEMO_DATA is false; no orders seeded.")
+            return
+        # Placing an order takes stock, so it may only touch the seeded catalogue.
+        if (
+            Order.objects.exists()
+            or not Product.objects.exists()
+            or Product.objects.exclude(slug__in=SEEDED_SLUGS).exists()
+        ):
+            self.stdout.write("Orders or merchant products exist; no orders seeded.")
+            return
+
+        # Production sends through a real SMTP relay, which would try every
+        # seed.invalid address and wait out EMAIL_TIMEOUT on each.
+        with override_settings(EMAIL_BACKEND="django.core.mail.backends.dummy.EmailBackend"):
+            self._seed()
+
+    def _seed(self) -> None:
         variants = self._available_variants()
 
         with transaction.atomic():
@@ -133,9 +175,6 @@ class Command(BaseCommand):
                     if by_status[status]
                 )
             )
-        )
-        self.stdout.write(
-            "The confirmation emails above are the console backend working, not an error."
         )
 
     def _flush(self) -> None:

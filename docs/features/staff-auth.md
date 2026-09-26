@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ---
 
@@ -24,7 +24,8 @@ What is included in this implementation?
 - `GET /api/v1/auth/me/`: the signed-in staff user
 - A dedicated `auth` throttle scope on the token endpoints
 - `make seed-staff`, which creates the demo staff user from `DEMO_STAFF_EMAIL` and
-  `DEMO_STAFF_PASSWORD` (DEBUG only)
+  `DEMO_STAFF_PASSWORD` (DEBUG only), and `seed_staff --deploy`, which the Render
+  build runs (ADR 0015)
 
 What is explicitly outside the scope?
 
@@ -78,7 +79,10 @@ CORS entry for the admin origin.
 - `apps/users/urls.py` — mounted under `/api/v1/auth/`.
 - `apps/users/management/commands/seed_staff.py` and `make seed-staff` — create or
   reset `DEMO_STAFF_EMAIL` as an active staff user named Asha Rai, with
-  `DEMO_STAFF_PASSWORD`. Refuses outside `DEBUG`.
+  `DEMO_STAFF_PASSWORD`. Refuses outside `DEBUG`. With `--deploy` it runs outside
+  `DEBUG` but only while `SEED_DEMO_DATA` is true (otherwise a no-op), creates the
+  user only if no user has that email (case-insensitive), never resets a password,
+  and rejects a `DEMO_STAFF_PASSWORD` under 12 characters.
 - `config/settings/base.py` — `auth` (`DJANGO_THROTTLE_AUTH`) and `admin`
   (`DJANGO_THROTTLE_ADMIN`) throttle scopes; `DEMO_STAFF_EMAIL` and
   `DEMO_STAFF_PASSWORD`, required like every variable (ADR 0008), in `.env.example`
@@ -140,6 +144,8 @@ The service raises a `DomainError`, as every service here does.
 - The access token lives 15 minutes and the refresh token 7 days
   (`JWT_ACCESS_TOKEN_LIFETIME_MINUTES`, `JWT_REFRESH_TOKEN_LIFETIME_DAYS`).
 - `DJANGO_SECRET_KEY` signs the tokens; PyJWT warns below 32 bytes.
+- On a deploy, changing `DEMO_STAFF_PASSWORD` does nothing once the user exists:
+  `--deploy` never resets it. Change the password from the Django admin instead.
 
 ---
 
@@ -209,6 +215,9 @@ The token and refresh endpoints are public but throttled. `me` and `logout` requ
   401 with only a Django admin session.
 - The `auth` throttle returns 429.
 - `seed_staff` is idempotent, produces a login that works, and refuses outside DEBUG.
+  `--deploy` creates a working login outside DEBUG, is a no-op while
+  `SEED_DEMO_DATA` is false, leaves an existing user's password alone, and rejects a
+  password under 12 characters.
 
 ---
 

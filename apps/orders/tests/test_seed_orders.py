@@ -5,6 +5,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from apps.catalog.models import Product, ProductVariant
+from apps.catalog.tests.factories import ProductVariantFactory
 from apps.orders.constants import OrderStatus, PaymentMethod
 from apps.orders.management.commands.seed_orders import ORDERS, SEED_EMAIL_DOMAIN
 from apps.orders.models import Order, OrderItem
@@ -145,3 +146,54 @@ def test_seeded_orders_span_the_dashboard_window(seeded):
 
     assert len(dates) > 10
     assert max(dates) - min(dates) < timedelta(days=30)
+
+
+@pytest.fixture
+def deploying(db, settings, tmp_path):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = True
+    settings.MEDIA_ROOT = tmp_path
+    call_command("seed_demo", "--deploy")
+
+
+def test_deploy_seeds_orders_on_the_seeded_catalogue_without_sending_mail(deploying, mailoutbox):
+    call_command("seed_orders", "--deploy")
+
+    assert _seeded_orders().count() == len(ORDERS)
+    assert mailoutbox == []
+
+
+def test_deploy_is_a_no_op_while_seed_demo_data_is_false(deploying, settings):
+    settings.SEED_DEMO_DATA = False
+
+    call_command("seed_orders", "--deploy")
+
+    assert not Order.objects.exists()
+
+
+def test_deploy_is_a_no_op_once_orders_exist(deploying):
+    call_command("seed_orders", "--deploy")
+    call_command("seed_orders", "--deploy")
+
+    assert Order.objects.count() == len(ORDERS)
+
+
+def test_deploy_never_places_orders_against_a_merchant_product(deploying):
+    merchant_variant = ProductVariantFactory()
+    stock = merchant_variant.stock_quantity
+
+    call_command("seed_orders", "--deploy")
+
+    assert not Order.objects.exists()
+    merchant_variant.refresh_from_db()
+    assert merchant_variant.stock_quantity == stock
+
+
+@pytest.mark.django_db
+def test_deploy_skips_an_empty_catalogue_instead_of_failing(settings):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = True
+
+    call_command("seed_orders", "--deploy")
+
+    assert not Order.objects.exists()

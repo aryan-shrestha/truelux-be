@@ -41,6 +41,7 @@ _TEST_ENVIRONMENT = {
     "STOREFRONT_URL": "https://storefront.invalid",
     "DEMO_STAFF_EMAIL": "staff@truelux.invalid",
     "DEMO_STAFF_PASSWORD": "test-staff-password",
+    "SEED_DEMO_DATA": "False",
 }
 
 os.environ.update(_TEST_ENVIRONMENT)

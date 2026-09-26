@@ -173,3 +173,47 @@ def test_seed_staff_refuses_outside_debug(settings):
         call_command("seed_staff")
 
     assert not User.objects.exists()
+
+
+def test_seed_staff_deploy_creates_a_staff_login_outside_debug(api_client, settings):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = True
+
+    call_command("seed_staff", "--deploy")
+
+    assert User.objects.get(email=settings.DEMO_STAFF_EMAIL).is_staff
+    response = _login(api_client, settings.DEMO_STAFF_EMAIL, settings.DEMO_STAFF_PASSWORD)
+    assert response.status_code == 200
+
+
+def test_seed_staff_deploy_is_a_no_op_while_seed_demo_data_is_false(settings):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = False
+
+    call_command("seed_staff", "--deploy")
+
+    assert not User.objects.exists()
+
+
+def test_seed_staff_deploy_never_resets_an_existing_password(api_client, settings):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = True
+    user = UserFactory(email=settings.DEMO_STAFF_EMAIL, is_staff=True)
+    user.set_password(PASSWORD)
+    user.save()
+
+    call_command("seed_staff", "--deploy")
+
+    assert User.objects.count() == 1
+    assert _login(api_client, settings.DEMO_STAFF_EMAIL).status_code == 200
+
+
+def test_seed_staff_deploy_rejects_a_short_password(settings):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = True
+    settings.DEMO_STAFF_PASSWORD = "elevenchars"
+
+    with pytest.raises(CommandError, match="12 characters"):
+        call_command("seed_staff", "--deploy")
+
+    assert not User.objects.exists()

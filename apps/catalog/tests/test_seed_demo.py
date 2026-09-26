@@ -1,4 +1,5 @@
 import pytest
+from django.core.files.storage import default_storage
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from PIL import Image
@@ -14,7 +15,7 @@ from apps.catalog.models import (
     Size,
     SkinType,
 )
-from apps.catalog.tests.factories import ProductFactory
+from apps.catalog.tests.factories import CategoryFactory, ProductFactory
 
 
 @pytest.fixture
@@ -212,3 +213,43 @@ def test_reseeding_restores_a_seeded_product_and_category(seeded):
         "cleanse",
         True,
     )
+
+
+@pytest.fixture
+def deploying(db, settings, tmp_path):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = True
+    settings.MEDIA_ROOT = tmp_path
+
+
+def test_deploy_seeds_an_empty_catalogue_outside_debug(deploying):
+    call_command("seed_demo", "--deploy")
+
+    assert Product.objects.count() == len(PRODUCTS)
+    image = ProductImage.objects.get(product__slug="silk-foundation", is_primary=True)
+    assert image.image.name
+    assert default_storage.exists(image.image.name)
+
+
+@pytest.mark.django_db
+def test_deploy_is_a_no_op_while_seed_demo_data_is_false(settings):
+    settings.DEBUG = False
+    settings.SEED_DEMO_DATA = False
+
+    call_command("seed_demo", "--deploy")
+
+    assert not Product.objects.exists()
+
+
+def test_deploy_leaves_an_existing_catalogue_alone(deploying):
+    CategoryFactory(name="My Cleansers", slug="cleanse")
+
+    call_command("seed_demo", "--deploy")
+
+    assert list(Category.objects.values_list("name", flat=True)) == ["My Cleansers"]
+    assert not Product.objects.exists()
+
+
+def test_deploy_cannot_be_combined_with_flush(deploying):
+    with pytest.raises(CommandError, match="not allowed with"):
+        call_command("seed_demo", "--deploy", "--flush")

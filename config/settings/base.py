@@ -203,10 +203,11 @@ SIMPLE_JWT = {
     "USER_AUTHENTICATION_RULE": "apps.users.authentication.is_active_staff",
 }
 
-# `make seed-staff` creates this login for the admin app; the command refuses to run
-# outside DEBUG.
+# `make seed-staff` creates this login for the admin app. Outside DEBUG only
+# `seed_staff --deploy` uses it, and only while SEED_DEMO_DATA is true (ADR 0015).
 DEMO_STAFF_EMAIL = read.text("DEMO_STAFF_EMAIL")
 DEMO_STAFF_PASSWORD = read.text("DEMO_STAFF_PASSWORD")
+SEED_DEMO_DATA = read.flag("SEED_DEMO_DATA")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "TrueLux API",

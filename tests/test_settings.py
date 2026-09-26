@@ -101,6 +101,7 @@ def test_a_variable_that_may_be_empty_is_accepted_empty(clean_env, name):
     ("name", "value"),
     [
         ("DJANGO_DEBUG", "Tru"),
+        ("SEED_DEMO_DATA", "maybe"),
         ("EMAIL_PORT", "five-eight-seven"),
         ("SHIPPING_FEE_INSIDE_VALLEY", "one hundred"),
         ("STOREFRONT_URL", "shop.example.com"),
@@ -298,6 +299,27 @@ def test_the_cache_is_the_database_table_the_build_creates(clean_env):
 def test_the_blueprint_build_creates_the_cache_table():
     source = (BASE_DIR / "render.yaml").read_text()
     assert "manage.py createcachetable --database=direct" in source
+
+
+def test_the_blueprint_seeds_demo_data_after_the_cache_table():
+    # ADR 0015: the free tier has no shell, so the build is the only place a fresh
+    # demo can get its catalogue and staff login.
+    source = (BASE_DIR / "render.yaml").read_text()
+    assert re.search(r"^\s*- key: SEED_DEMO_DATA\s*\n\s*value: \"true\"\s*$", source, re.M)
+    steps = [
+        "manage.py createcachetable --database=direct",
+        "manage.py seed_staff --deploy",
+        "manage.py seed_demo --deploy",
+        "manage.py seed_orders --deploy",
+    ]
+    positions = [source.index(step) for step in steps]
+    assert positions == sorted(positions)
+
+
+def test_seed_demo_data_is_read_as_a_flag(clean_env):
+    clean_env.setenv("SEED_DEMO_DATA", "true")
+
+    assert _reload("config.settings.base").SEED_DEMO_DATA is True
 
 
 def test_direct_alias_mirrors_default_so_tests_build_one_database(clean_env):

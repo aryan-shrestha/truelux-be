@@ -20,10 +20,13 @@ What is included in this implementation?
 - `make seed`: `seed_demo` (catalogue) then `seed_orders` (orders)
 - `make reseed`: flush orders, flush and reseed the catalogue, reseed orders
 - `make seed-staff`: the demo staff user (see `staff-auth.md`)
+- `--deploy` on all three commands, which the Render build runs so a fresh demo
+  deploy gets the same data (ADR 0015)
 
 What is explicitly outside the scope?
 
-- Production data. Every command refuses to run outside `DEBUG`.
+- Production data. Every command refuses to run outside `DEBUG`, except with
+  `--deploy` while `SEED_DEMO_DATA` is true.
 
 ---
 
@@ -63,6 +66,14 @@ What is explicitly outside the scope?
   for delivered orders), then back-dated across the last 29 days so the dashboard has
   a history. `--flush` and `--flush-only` delete orders at `@seed.invalid`.
 - `Makefile` — `seed`, `reseed`, `seed-staff`.
+- `--deploy` (ADR 0015) on `seed_demo`, `seed_orders` and `seed_staff`: bypasses the
+  `DEBUG` guard only when `SEED_DEMO_DATA` is true, and is otherwise a no-op that
+  exits 0. It never flushes (argparse rejects it with `--flush`/`--flush-only`).
+  `seed_demo --deploy` seeds only when there are no brands, categories or products;
+  `seed_orders --deploy` only when there are no orders and every product is a
+  seeded one, and sends its email to the dummy backend. Images go through the
+  default storage, so on Render they land in Cloudinary. `render.yaml` runs all
+  three after `createcachetable`.
 
 ---
 
@@ -106,6 +117,11 @@ that produces them; catalogue rows have no business rule beyond constraints.
 - Reseeding locally leaves the previous generated files in `media/` (the storage
   appends a suffix); delete the folder if it matters.
 - Seeded emails use `seed.invalid`, which can never resolve.
+- `--deploy` treats any brand, category or product as a merchant's catalogue and
+  seeds nothing, because seeding upserts by slug. A demo that should be reseeded
+  needs an empty catalogue.
+- Deleting every order in a demo whose products are all seeded makes the next
+  build seed orders again.
 - A seeded category that still holds a product the merchant (or an e2e run) added
   survives `--flush`, and when its parent is flushed `SET_NULL` turns it into a
   root. Seeding re-parents it, which is why categories are upserted rather than
@@ -117,7 +133,7 @@ that produces them; catalogue rows have no business rule beyond constraints.
 
 ## Permissions
 
-DEBUG only.
+DEBUG only, or `--deploy` with `SEED_DEMO_DATA` true.
 
 ---
 
@@ -130,10 +146,15 @@ DEBUG only.
   category and a re-parented one, keeping a category a merchant product uses, and
   re-parenting that surviving category), restoring an edited seeded category and
   product without `--flush`,
-  one primary per product, generated PNGs.
+  one primary per product, generated PNGs; `--deploy` seeds an empty catalogue
+  outside DEBUG through the default storage, is a no-op while `SEED_DEMO_DATA` is
+  false, leaves an existing catalogue alone, and refuses `--flush`.
 - `apps/orders/tests/test_seed_orders.py` — every status present, a payment per
   order, cash collected only for delivered orders, stock arithmetic, flush
-  behaviour, the reseed sequence, dates spanning the dashboard window.
+  behaviour, the reseed sequence, dates spanning the dashboard window; `--deploy`
+  seeds without sending mail, is a no-op while `SEED_DEMO_DATA` is false, once
+  orders exist, beside a merchant product (whose stock is untouched), and on an
+  empty catalogue.
 
 ---
 
@@ -144,4 +165,5 @@ apps/catalog/management/commands/{seed_demo,_seed_catalogue}.py
 apps/orders/management/commands/seed_orders.py
 apps/users/management/commands/seed_staff.py
 Makefile
+render.yaml
 ```

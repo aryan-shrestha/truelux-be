@@ -86,18 +86,35 @@ def placeholder_png(
 
 
 class Command(BaseCommand):
-    help = "Populate a development cosmetics catalogue. Refuses to run outside DEBUG."
+    help = (
+        "Populate a development cosmetics catalogue. Refuses to run outside DEBUG, unless "
+        "--deploy while SEED_DEMO_DATA is true."
+    )
 
     def add_arguments(self, parser: CommandParser) -> None:
-        parser.add_argument(
+        mode = parser.add_mutually_exclusive_group()
+        mode.add_argument(
             "--flush",
             action="store_true",
             help="Delete the products and categories this command created before seeding again.",
         )
+        mode.add_argument(
+            "--deploy",
+            action="store_true",
+            help="Seed only an empty catalogue, and only when SEED_DEMO_DATA is true.",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        if options["deploy"]:
+            if not settings.SEED_DEMO_DATA:
+                self.stdout.write("SEED_DEMO_DATA is false; no catalogue seeded.")
+                return
+            # Seeding upserts seeded slugs, so any existing row could be a merchant's.
+            if Brand.objects.exists() or Category.objects.exists() or Product.objects.exists():
+                self.stdout.write("The catalogue is not empty; no catalogue seeded.")
+                return
         # A mistyped DJANGO_SETTINGS_MODULE must not put demo products in a real shop.
-        if not settings.DEBUG:
+        elif not settings.DEBUG:
             raise CommandError("seed_demo writes demo rows and only runs with DEBUG enabled.")
 
         if options["flush"]:

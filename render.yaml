@@ -31,10 +31,16 @@ services:
     #
     # --database=direct because migrations cannot run over Supabase's pooler.
     # createcachetable builds the table the throttle counters live in (ADR 0014).
+    # The free tier has no shell or jobs, so the demo data is seeded here (ADR 0015):
+    # each --deploy command is a no-op unless SEED_DEMO_DATA is true and its rows
+    # are absent, so every later deploy leaves the shop's data alone.
     buildCommand: >-
       uv sync --frozen &&
       uv run python manage.py migrate --database=direct &&
       uv run python manage.py createcachetable --database=direct &&
+      uv run python manage.py seed_staff --deploy &&
+      uv run python manage.py seed_demo --deploy &&
+      uv run python manage.py seed_orders --deploy &&
       uv run python manage.py collectstatic --noinput
 
     # $PORT because Render's default is 10000 and it only *usually* detects a
@@ -70,7 +76,8 @@ services:
         sync: false
       - key: EMAIL_HOST_PASSWORD
         sync: false
-      # Required by ADR 0008 but unused in production: seed_staff refuses outside DEBUG.
+      # The admin login `seed_staff --deploy` creates once while SEED_DEMO_DATA is
+      # true. The password must be at least 12 characters.
       - key: DEMO_STAFF_EMAIL
         sync: false
       - key: DEMO_STAFF_PASSWORD
@@ -137,3 +144,7 @@ services:
         value: "150.00"
       - key: SHIPPING_FEE_OUTSIDE_VALLEY
         value: "250.00"
+      # A client demo: the build seeds an empty database. Set "false" for a real
+      # shop; the seeded rows already present are then left as they are.
+      - key: SEED_DEMO_DATA
+        value: "true"

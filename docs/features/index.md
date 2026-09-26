@@ -21,10 +21,10 @@ Redis were removed at the fork.
 | 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-25   |
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
 | 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-26 |
-| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-25   |
+| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-26   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-25   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
-| 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-25   |
+| 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-26   |
 | 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15 | 2026-09-26 |
 | 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
 
@@ -47,6 +47,8 @@ Redis were removed at the fork.
   feel and key ingredients; `?skin_type=` and `/skin-types/` serve the storefront's
   shop-by-skin-type menu, and `?category=<parent>` includes the parent's children.
 - Migrations were regenerated as fresh `0001_initial`s.
+- **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, the Render
+  build fills an empty database with the demo catalogue, orders and staff login.
 
 ## Contracts with the front-end apps
 
@@ -84,6 +86,7 @@ Redis were removed at the fork.
 | 0012 | The admin app authenticates with JWT server-side | staff-auth, admin-api                |
 | 0013 | The admin API is its own app                    | admin-api                             |
 | 0014 | The database cache replaces Redis               | deployment, every throttled endpoint  |
+| 0015 | The build seeds demo data when asked            | deployment, demo-seed, staff-auth     |
 
 ## Deferred
 
