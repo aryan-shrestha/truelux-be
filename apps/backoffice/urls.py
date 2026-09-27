@@ -51,4 +51,9 @@ urlpatterns = [
         views.OrderTransitionView.as_view(),
         name="admin-order-transition",
     ),
+    path(
+        "settings/shipping/",
+        views.ShippingSettingsView.as_view(),
+        name="admin-shipping-settings",
+    ),
 ]

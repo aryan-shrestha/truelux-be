@@ -17,7 +17,7 @@ from apps.catalog.models import (
     SkinType,
 )
 from apps.orders.constants import ALLOWED_TRANSITIONS, OrderStatus
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import Order, OrderItem, ShippingSettings
 
 
 def validate_image_upload(upload: "File[Any]") -> None:
@@ -393,3 +393,26 @@ class DashboardSerializer(serializers.Serializer[dict[str, Any]]):
     sales_by_day = SalesDaySerializer(many=True)
     recent_orders = AdminOrderListSerializer(many=True)
     low_stock = LowStockSerializer(many=True)
+
+
+class AdminShippingSettingsSerializer(serializers.ModelSerializer[ShippingSettings]):
+    class Meta:
+        model = ShippingSettings
+        fields = (
+            "inside_valley_fee",
+            "outside_valley_fee",
+            "free_shipping_threshold",
+            "updated_at",
+        )
+
+
+class ShippingSettingsWriteSerializer(serializers.Serializer[ShippingSettings]):
+    inside_valley_fee = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0.00")
+    )
+    outside_valley_fee = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0.00")
+    )
+    free_shipping_threshold = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0.01"), allow_null=True
+    )

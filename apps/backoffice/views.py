@@ -27,6 +27,7 @@ from apps.backoffice.serializers import (
     AdminProductDetailSerializer,
     AdminProductListSerializer,
     AdminShadeSerializer,
+    AdminShippingSettingsSerializer,
     AdminSizeSerializer,
     AdminSkinTypeSerializer,
     AdminVariantSerializer,
@@ -37,6 +38,7 @@ from apps.backoffice.serializers import (
     ImageUpdateSerializer,
     ProductWriteSerializer,
     ShadeWriteSerializer,
+    ShippingSettingsWriteSerializer,
     SizeWriteSerializer,
     SkinTypeWriteSerializer,
     TransitionSerializer,
@@ -59,7 +61,8 @@ from apps.catalog.services import (
     update_variant,
 )
 from apps.orders.models import Order
-from apps.orders.services import transition_order
+from apps.orders.selectors import get_shipping_settings
+from apps.orders.services import transition_order, update_shipping_settings
 
 ADMIN_THROTTLE_SCOPE = "admin"
 JSON_AND_MULTIPART = (JSONParser, MultiPartParser, FormParser)
@@ -408,3 +411,17 @@ class OrderTransitionView(StaffAPIView):
         transition_order(order=selectors.get_order(order_id=order_id), to=target)
 
         return Response(AdminOrderDetailSerializer(selectors.get_order(order_id=order_id)).data)
+
+
+class ShippingSettingsView(StaffAPIView):
+    @extend_schema(responses={200: AdminShippingSettingsSerializer})
+    def get(self, request: Request) -> Response:
+        return Response(AdminShippingSettingsSerializer(get_shipping_settings()).data)
+
+    @extend_schema(
+        request=ShippingSettingsWriteSerializer, responses={200: AdminShippingSettingsSerializer}
+    )
+    def patch(self, request: Request) -> Response:
+        fields = _validated(ShippingSettingsWriteSerializer, request, partial=True)
+        shipping = update_shipping_settings(fields=fields)
+        return Response(AdminShippingSettingsSerializer(shipping).data)

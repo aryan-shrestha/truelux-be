@@ -4,6 +4,10 @@ Status: Accepted
 
 Date: 2026-09-21
 
+Superseded in part by: [ADR 0017](0017-shipping-fees-are-merchant-data.md), for the
+`SHIPPING_FEE_*` variables, which are now the `ShippingSettings` table. The
+`decimal` reader went with them.
+
 Supersedes: the "local development without Cloudinary credentials" decision in
 `docs/features/media-storage.md`, and the "Khalti settings default to blank, and a
 system check enforces them" decision in `docs/features/payments.md`
@@ -28,7 +32,8 @@ in `base.py` and could not fail.
 
 Three problems followed from that split, and they are what this decision answers:
 
-- **A default is a decision nobody made.** `SHIPPING_FEE_OUTSIDE_VALLEY` defaulting
+- **A default is a decision nobody made.** (Superseded by ADR 0017: the shipping
+  fees are no longer environment variables.) `SHIPPING_FEE_OUTSIDE_VALLEY` defaulting
   to `250.00` means a deployment that never set it charges a number chosen by
   whoever wrote the line, in a file nobody reads at deploy time.
 - **Malformed values were not caught at boot.** A throttle rate is parsed by DRF
@@ -56,7 +61,7 @@ Values are validated, not merely present:
 
 | Reader | Rejects |
 | --- | --- |
-| `integer`, `decimal` | anything that will not parse |
+| `integer`, `decimal` (removed with the `SHIPPING_FEE_*` variables, ADR 0017) | anything that will not parse |
 | `flag` | anything that is not a recognised true/false spelling — `env.bool` silently treats `Tru` as false |
 | `url` | anything without an `http`/`https` scheme and a host |
 | `database` | anything django-environ cannot parse, or that names no database |

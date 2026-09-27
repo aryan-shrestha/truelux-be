@@ -14,7 +14,6 @@ not the configuration surface.
 """
 
 import re
-from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import urlparse
 
@@ -128,16 +127,6 @@ class EnvironmentReader:
         if value is None:
             return []
         return [item.strip() for item in value.split(",") if item.strip()]
-
-    def decimal(self, name: str) -> Decimal:
-        value = self._raw(name)
-        if value is None:
-            return Decimal("0")
-        try:
-            return Decimal(value)
-        except InvalidOperation:
-            self._reject(name, f"must be a decimal amount, not {self._shown(name, value)}")
-            return Decimal("0")
 
     def url(self, name: str, *, require_https: bool = False) -> str:
         value = self._raw(name)

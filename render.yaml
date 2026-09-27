@@ -131,6 +131,8 @@ services:
         value: 20/hour
       - key: DJANGO_THROTTLE_CHECKOUT
         value: 30/hour
+      - key: DJANGO_THROTTLE_QUOTE
+        value: 600/hour
       - key: DJANGO_THROTTLE_AUTH
         value: 10/minute
       - key: DJANGO_THROTTLE_ADMIN
@@ -143,10 +145,6 @@ services:
         value: "True"
       - key: EMAIL_TIMEOUT
         value: "10"
-      - key: SHIPPING_FEE_INSIDE_VALLEY
-        value: "150.00"
-      - key: SHIPPING_FEE_OUTSIDE_VALLEY
-        value: "250.00"
       # A client demo: the build seeds an empty database. Set "false" for a real
       # shop; the seeded rows already present are then left as they are.
       - key: SEED_DEMO_DATA
