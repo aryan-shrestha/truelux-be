@@ -9,15 +9,23 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.catalog.views import CATALOG_THROTTLE_SCOPE
 from apps.orders.models import Order
-from apps.orders.selectors import get_order_by_access_token, get_order_by_number_and_email
+from apps.orders.selectors import (
+    get_order_by_access_token,
+    get_order_by_number_and_email,
+    get_shipping_settings,
+)
 from apps.orders.serializers import (
     CheckoutResponseSerializer,
     CheckoutSerializer,
     OrderLookupSerializer,
     OrderReadSerializer,
+    QuoteResponseSerializer,
+    QuoteSerializer,
+    ShippingSettingsSerializer,
 )
-from apps.orders.services import place_order
+from apps.orders.services import place_order, quote_cart
 from apps.payments.services import record_cod_payment
 
 ORDER_LOOKUP_THROTTLE_SCOPE = "order_lookup"
@@ -66,3 +74,30 @@ class CheckoutView(APIView):
         record_cod_payment(order=order)
 
         return Response(CheckoutResponseSerializer(order).data, status=status.HTTP_201_CREATED)
+
+
+class QuoteView(APIView):
+    permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    # Checkout's scope and so checkout's counter: the quote reads the same rows and
+    # runs the same availability checks, just without the lock.
+    throttle_scope = CHECKOUT_THROTTLE_SCOPE
+
+    @extend_schema(request=QuoteSerializer, responses={200: QuoteResponseSerializer})
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        serializer = QuoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        price = quote_cart(**serializer.validated_data)
+
+        return Response(QuoteResponseSerializer(price).data)
+
+
+class ShippingSettingsView(APIView):
+    permission_classes = (AllowAny,)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = CATALOG_THROTTLE_SCOPE
+
+    @extend_schema(responses={200: ShippingSettingsSerializer})
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        return Response(ShippingSettingsSerializer(get_shipping_settings()).data)
