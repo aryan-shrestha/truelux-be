@@ -16,18 +16,19 @@ Redis were removed at the fork.
 | 4   | product-catalog     | Implemented | `features/product-catalog.md`     | 2, 3       | 2026-09-26   |
 | 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-26   |
 | 6   | orders              | Implemented | `features/orders.md`              | 2, 4       | 2026-09-25   |
-| 7   | checkout            | Implemented | `features/checkout.md`            | 6          | 2026-09-25   |
+| 7   | checkout            | Implemented | `features/checkout.md`            | 6, 19      | 2026-09-27   |
 | 8   | payments            | Implemented | `features/payments.md`            | 7          | 2026-09-25   |
 | 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-25   |
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
 | 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-26 |
-| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-26   |
+| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-27   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-26   |
-| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15 | 2026-09-26 |
+| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15, 19 | 2026-09-27 |
 | 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
 | 18  | catalogue-import    | Implemented | `features/catalogue-import.md`    | 3, 4, 17   | 2026-09-26   |
+| 19  | checkout-quote-and-shipping | Implemented | `features/checkout-quote-and-shipping.md` | 6, 7, 16 | 2026-09-27 |
 
 `Depends on` refers to the `#` column of this table.
 
@@ -52,6 +53,10 @@ Redis were removed at the fork.
 - **The real catalogue loads from a workbook** (#18, ADR 0016): `import_catalogue`
   validates an Excel workbook and upserts it through the services, locally or into
   production from the owner's machine with `ENV_FILE=.env.production`.
+- **Shipping is merchant data** (#19, ADR 0017). The fees and an optional
+  free-shipping threshold live in a `ShippingSettings` row that staff edit at
+  `/api/v1/admin/settings/shipping/`; `POST /checkout/quote/` prices a cart through
+  the same `price_cart` that checkout uses, and `GET /shipping/` serves the fees.
 - **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, the Render
   build fills an empty database with the demo catalogue, orders and staff login.
 
@@ -84,7 +89,7 @@ Redis were removed at the fork.
 | 0005 | Khalti lookup is the only verification          | superseded by 0011                    |
 | 0006 | Transactional email sends in-request            | transactional-email, checkout         |
 | 0007 | Size and colour are lookup tables               | product-catalog (colour: see 0010)    |
-| 0008 | Every environment variable is required          | every app; `config/settings`          |
+| 0008 | Every environment variable is required          | every app; `config/settings` (its `SHIPPING_FEE_*` entries superseded by 0017) |
 | 0009 | Brand is a first-class model                    | brands, catalog-browsing              |
 | 0010 | Shade replaces colour, and is optional          | shades-and-sizes, orders              |
 | 0011 | Cash on delivery only                           | payments, orders, checkout            |
@@ -93,10 +98,12 @@ Redis were removed at the fork.
 | 0014 | The database cache replaces Redis               | deployment, every throttled endpoint  |
 | 0015 | The build seeds demo data when asked            | deployment, demo-seed, staff-auth     |
 | 0016 | The real catalogue is imported from a workbook  | catalogue-import, deployment          |
+| 0017 | Shipping fees are merchant data                 | checkout-quote-and-shipping, checkout, admin-api |
 
 ## Deferred
 
-Customer accounts and order history, online payment, discount codes, wishlist,
+Customer accounts and order history, online payment, discount codes (the quote
+already returns `discount`), wishlist,
 reviews, returns and refunds, staff roles, bulk import/export in the admin app (the
 owner's workbook import is #18), courier tracking,
 restock notifications, and a scheduler for sweeps (stale pending orders, unsent

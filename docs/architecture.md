@@ -105,8 +105,9 @@ writes go through the owning app's service layer, never through its models
 directly.
 
 `catalog` owns `brand`, `size`, `shade`, `category`, `product`, `product_variant`
-and `product_image`. `orders` owns `order` and `order_item`. `payments` owns the
-cash-on-delivery `payment` record; there is no gateway (ADR 0011).
+and `product_image`. `orders` owns `order`, `order_item` and the one-row
+`shipping_settings` (ADR 0017). `payments` owns the cash-on-delivery `payment`
+record; there is no gateway (ADR 0011).
 
 One boundary is genuinely non-obvious. Placing an order decrements variant stock,
 and that row belongs to `catalog`. The decrement — including its
@@ -310,6 +311,9 @@ Order                     (apps/orders)
       ├── variant (PROTECT)
       └── product_name / variant_size / variant_shade / sku / unit_price
                                         snapshots, see orders.md
+
+ShippingSettings          (apps/orders, one row, id = 1; ADR 0017)
+ └── inside_valley_fee / outside_valley_fee / free_shipping_threshold (nullable)
 
 `Order` has **no `user` foreign key**, deliberately and not as an oversight: ADR
 0003 makes possession of `access_token` the authorization story for Phase 1.

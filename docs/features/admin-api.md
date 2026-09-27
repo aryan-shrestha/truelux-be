@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-26
+Last updated: 2026-09-27
 
 ---
 
@@ -25,6 +25,8 @@ What is included in this implementation?
   set primary, delete)
 - Brands, categories, shades, sizes and skin types: CRUD
 - Orders: list, detail, status transitions
+- Shipping settings: fees and free-shipping threshold
+  (`checkout-quote-and-shipping.md`)
 
 What is explicitly outside the scope?
 
@@ -98,6 +100,8 @@ and cash is collected at delivery. Cancellation restores stock (ADR 0004, unchan
   `ProductImageAdmin`'s "Make primary" action calls `update_product_image`
   (`is_primary` is read-only there). Orders get "Mark selected orders as confirmed".
 - The dashboard is one selector, `get_dashboard`, in `Asia/Kathmandu` days.
+- `ShippingSettingsView` reads `apps.orders.selectors.get_shipping_settings` and
+  writes through `apps.orders.services.update_shipping_settings`.
 
 ---
 
@@ -283,6 +287,18 @@ Detail adds `email`, `address_line`, `city`, `district`, `note`, `subtotal`,
 Transition errors: `422 invalid_status_transition`, `order_already_shipped` or
 `order_not_cancellable`, as raised by the services.
 
+### Shipping settings: `GET, PATCH settings/shipping/`
+
+```json
+{ "inside_valley_fee": "150.00", "outside_valley_fee": "250.00",
+  "free_shipping_threshold": null, "updated_at": "…" }
+```
+
+`PATCH` is partial. Fees must be ≥ 0; the threshold must be > 0 or `null` (no free
+shipping); otherwise `400 validation_error`. The next quote and checkout use the new
+values; placed orders keep what they were charged. Full contract in
+`checkout-quote-and-shipping.md`.
+
 ---
 
 ## Data changes
@@ -319,6 +335,8 @@ tokens get `403`.
   detail with `allowed_transitions` and `line_total`; each transition path; the
   documented 422 codes; cancel restores stock; `ALLOWED_TRANSITIONS` agrees with the
   services for every pair.
+- `test_shipping_settings.py` — GET and partial PATCH, validation, non-staff 403,
+  and a PATCH changing the next quote.
 - `test_dashboard.py` — revenue excludes cancelled orders and uses the Kathmandu
   day; `sales_by_day` has 30 zero-filled days; every status is counted; five recent
   orders; low stock is lowest first and capped at ten.
@@ -342,5 +360,5 @@ apps/backoffice/
 └── tests/
 apps/catalog/services/     # products.py, taxonomy.py, stock.py
 apps/orders/constants.py   # ALLOWED_TRANSITIONS
-apps/orders/services.py    # confirm_order, transition_order
+apps/orders/services.py    # confirm_order, transition_order, update_shipping_settings
 ```

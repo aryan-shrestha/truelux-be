@@ -65,10 +65,13 @@ would still be duplicated.
 ## Implementation
 
 ```text
-apps/orders/models.py
-apps/orders/services.py
-apps/orders/selectors.py
-apps/backoffice/views.py
-config/settings/base.py
-render.yaml
+apps/orders/models.py                        ShippingSettings (one row, id = 1)
+apps/orders/migrations/0003_default_shipping_settings.py
+apps/orders/services.py                      price_cart, quote_cart, update_shipping_settings
+apps/orders/selectors.py                     get_shipping_settings
+apps/orders/views.py                         /checkout/quote/, /shipping/
+apps/backoffice/views.py                     /admin/settings/shipping/
+config/settings/base.py                      SHIPPING_FEE_* removed
+render.yaml, .env.example, config/settings/test.py
+docs/features/checkout-quote-and-shipping.md
 ```
