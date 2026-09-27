@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-26
+Last updated: 2026-09-27
 
 ---
 
@@ -44,8 +44,8 @@ are the only services. ADR 0008 requires every variable, and two tests keep
   `healthCheckPath: /health/`. Build: `uv sync --frozen`, `migrate
   --database=direct`, `createcachetable --database=direct`, `seed_staff --deploy`,
   `seed_demo --deploy`, `seed_orders --deploy`, `collectstatic`. Start: gunicorn on
-  `$PORT`, 2 workers, 30 s timeout. 38 variables: 17 prompted (`sync: false`),
-  `DJANGO_SECRET_KEY` generated, 20 with blueprint values including
+  `$PORT`, 2 workers, 30 s timeout. 36 variables: 17 prompted (`sync: false`),
+  `DJANGO_SECRET_KEY` generated, 18 with blueprint values including
   `DJANGO_SETTINGS_MODULE=config.settings.production`, `DJANGO_THROTTLE_AUTH=10/minute`,
   `DJANGO_THROTTLE_ADMIN=2000/hour` and `SEED_DEMO_DATA="true"`.
 - `config/settings/production.py` — trusts `X-Forwarded-Proto`, appends

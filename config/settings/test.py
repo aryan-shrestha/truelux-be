@@ -36,8 +36,6 @@ _TEST_ENVIRONMENT = {
     "EMAIL_HOST_PASSWORD": "",
     "EMAIL_USE_TLS": "True",
     "EMAIL_TIMEOUT": "10",
-    "SHIPPING_FEE_INSIDE_VALLEY": "150.00",
-    "SHIPPING_FEE_OUTSIDE_VALLEY": "250.00",
     "STOREFRONT_URL": "https://storefront.invalid",
     "DEMO_STAFF_EMAIL": "staff@truelux.invalid",
     "DEMO_STAFF_PASSWORD": "test-staff-password",

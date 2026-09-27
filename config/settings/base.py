@@ -259,9 +259,8 @@ EMAIL_TIMEOUT = read.integer("EMAIL_TIMEOUT")
 # ADR 0003 and http would mail it in clear text.
 STOREFRONT_URL = read.url("STOREFRONT_URL", require_https=True)
 
-# A district matching neither band pays the outside rate; see checkout.md.
-SHIPPING_FEE_INSIDE_VALLEY = read.decimal("SHIPPING_FEE_INSIDE_VALLEY")
-SHIPPING_FEE_OUTSIDE_VALLEY = read.decimal("SHIPPING_FEE_OUTSIDE_VALLEY")
+# Geography, not pricing, so it stays in code while the fees are merchant data in
+# ShippingSettings (ADR 0017). Any other district pays the outside-valley fee.
 KATHMANDU_VALLEY_DISTRICTS = ("kathmandu", "lalitpur", "bhaktapur")
 
 LOG_LEVEL = read.text("DJANGO_LOG_LEVEL")

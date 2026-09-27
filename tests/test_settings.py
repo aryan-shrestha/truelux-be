@@ -103,7 +103,6 @@ def test_a_variable_that_may_be_empty_is_accepted_empty(clean_env, name):
         ("DJANGO_DEBUG", "Tru"),
         ("SEED_DEMO_DATA", "maybe"),
         ("EMAIL_PORT", "five-eight-seven"),
-        ("SHIPPING_FEE_INSIDE_VALLEY", "one hundred"),
         ("STOREFRONT_URL", "shop.example.com"),
         ("DATABASE_URL", "not-a-database-url"),
         ("DATABASE_SCHEMA", "truelux,public"),

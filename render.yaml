@@ -143,10 +143,6 @@ services:
         value: "True"
       - key: EMAIL_TIMEOUT
         value: "10"
-      - key: SHIPPING_FEE_INSIDE_VALLEY
-        value: "150.00"
-      - key: SHIPPING_FEE_OUTSIDE_VALLEY
-        value: "250.00"
       # A client demo: the build seeds an empty database. Set "false" for a real
       # shop; the seeded rows already present are then left as they are.
       - key: SEED_DEMO_DATA
