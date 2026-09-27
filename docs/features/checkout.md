@@ -70,8 +70,8 @@ is no authenticated user; contact details come from the body.
 - The fees and the free-shipping threshold are the `ShippingSettings` row (default
   150.00 / 250.00, no threshold), edited by staff, not settings
   ([ADR 0017](../decisions/0017-shipping-fees-are-merchant-data.md)). Settings:
-  `KATHMANDU_VALLEY_DISTRICTS`, `DJANGO_THROTTLE_CHECKOUT` (`30/hour`, shared with
-  the quote).
+  `KATHMANDU_VALLEY_DISTRICTS`, `DJANGO_THROTTLE_CHECKOUT` (`30/hour`; the quote
+  has its own `quote` scope).
 
 ---
 

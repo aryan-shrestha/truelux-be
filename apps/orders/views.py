@@ -30,6 +30,7 @@ from apps.payments.services import record_cod_payment
 
 ORDER_LOOKUP_THROTTLE_SCOPE = "order_lookup"
 CHECKOUT_THROTTLE_SCOPE = "checkout"
+QUOTE_THROTTLE_SCOPE = "quote"
 
 
 class OrderDetailView(RetrieveAPIView[Order]):
@@ -79,9 +80,7 @@ class CheckoutView(APIView):
 class QuoteView(APIView):
     permission_classes = (AllowAny,)
     throttle_classes = (ScopedRateThrottle,)
-    # Checkout's scope and so checkout's counter: the quote reads the same rows and
-    # runs the same availability checks, just without the lock.
-    throttle_scope = CHECKOUT_THROTTLE_SCOPE
+    throttle_scope = QUOTE_THROTTLE_SCOPE
 
     @extend_schema(request=QuoteSerializer, responses={200: QuoteResponseSerializer})
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:

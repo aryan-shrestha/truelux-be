@@ -98,7 +98,7 @@ What is explicitly outside the scope?
 
 ### Endpoints
 
-- `apps/orders/views.py::QuoteView` (`AllowAny`, scope `checkout`),
+- `apps/orders/views.py::QuoteView` (`AllowAny`, scope `quote`),
   `ShippingSettingsView` (`AllowAny`, scope `catalog`); routes `checkout/quote/`
   (`v1:checkout-quote`) and `shipping/` (`v1:shipping`).
 - `apps/backoffice/views.py::ShippingSettingsView(StaffAPIView)`, route
@@ -114,6 +114,9 @@ What is explicitly outside the scope?
   `config/settings/base.py`, `config/settings/test.py`, `.env.example`,
   `render.yaml` and `tests/test_settings.py`. `EnvironmentReader.decimal`, which only
   they used, is removed from `config/settings/strict_env.py`.
+- `DJANGO_THROTTLE_QUOTE` (required, ADR 0008) sets the `quote` scope's rate in
+  `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]`: `600/hour` in `render.yaml` and
+  `.env.example`, `1000/minute` in `config/settings/test.py`.
 
 ---
 
@@ -152,6 +155,21 @@ bag), but it must not hold row locks for a read that may never become an order.
 Only the locked decrement decides; a quote can be stale by the time the customer
 checks out.
 
+### Decision: the quote has its own throttle scope
+
+**Decision**
+
+`POST /checkout/quote/` uses the `quote` scope (`DJANGO_THROTTLE_QUOTE`,
+`600/hour`), not checkout's `checkout` scope (`30/hour`).
+
+**Reason**
+
+`ScopedRateThrottle` keys its counter by scope and client IP. On a shared scope,
+a bag page that quotes on every quantity change would use up the customer's
+allowance to place the order. The quote takes no lock and writes nothing, so it can
+have a ceiling near browsing's (`catalog`, `600/hour`), while checkout keeps its low
+one.
+
 ### Decision: a blank district is no district
 
 **Decision**
@@ -168,11 +186,10 @@ outside-valley fee to a customer who has not said where they live.
 
 ## Gotchas
 
-- **The quote and checkout share one throttle counter.** `ScopedRateThrottle` keys
-  by scope and client IP, and both use `checkout` (`DJANGO_THROTTLE_CHECKOUT`,
-  `30/hour` in `render.yaml`). A bag page that quotes on every quantity change can
-  use up the customer's checkout allowance. Raise the rate, or give the quote its own
-  scope, if that happens in practice.
+- The quote and checkout have separate throttle counters (`quote` and `checkout`).
+  Quoting never uses up the checkout allowance, and a customer throttled on quotes
+  can still check out. `test_quotes_do_not_consume_the_checkout_allowance` guards
+  this.
 - `GET /shipping/` sets no `Cache-Control` header, like the catalogue endpoints.
   "Cacheable" means it holds no per-visitor data, so the storefront may cache it;
   the API itself caches nothing (`architecture.md`).
@@ -190,7 +207,8 @@ outside-valley fee to a customer who has not said where they live.
 
 ### `POST /api/v1/checkout/quote/`
 
-Public, throttle scope `checkout`. It writes nothing and sends no email.
+Public, throttle scope `quote` (`DJANGO_THROTTLE_QUOTE`, `600/hour`), separate from
+checkout's. It writes nothing and sends no email.
 
 ```json
 { "items": [{ "variant_id": "…", "quantity": 2 }], "district": "Lalitpur" }
@@ -218,7 +236,8 @@ Duplicate lines for one variant are summed into one line.
 Without a district and below the threshold, `shipping_fee` and `total` are `null`.
 
 Errors are identical to `POST /checkout/`: `400 validation_error`,
-`422 variant_unavailable`, `422 insufficient_stock` and `429 throttled`.
+`422 variant_unavailable`, `422 insufficient_stock` and `429 throttled` (here from
+the `quote` scope).
 
 ### `GET /api/v1/shipping/`
 
@@ -280,7 +299,7 @@ active staff JWT (`StaffAPIView`).
   orders and outbox unchanged); client prices ignored; `400` for empty, malformed
   and missing items and zero quantity; `422 variant_unavailable` for unpublished,
   inactive-brand and unknown variants; `422 insufficient_stock` without `available`;
-  the shared `checkout` throttle; `/shipping/` values, null threshold and `catalog`
+  the `quote` throttle, and quotes not consuming the `checkout` counter; `/shipping/` values, null threshold and `catalog`
   throttle.
 - `apps/backoffice/tests/test_shipping_settings.py` — GET shape; partial PATCH;
   `null` threshold; zero fee allowed; negative fees, zero/negative threshold, null
@@ -307,7 +326,7 @@ apps/orders/services.py                                price_cart, quote_cart, u
 apps/orders/{serializers,views,urls}.py                quote and /shipping/
 apps/catalog/services/stock.py                         check_variant_availability
 apps/backoffice/{serializers,views,urls}.py            admin settings route
-config/settings/{base,test,strict_env}.py, .env.example, render.yaml
+config/settings/{base,test,strict_env}.py, .env.example, render.yaml   quote rate, fees removed
 conftest.py                                            shipping_settings fixture
 ```
 

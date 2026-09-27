@@ -110,6 +110,7 @@ def test_a_variable_that_may_be_empty_is_accepted_empty(clean_env, name):
         ("DATABASE_SCHEMA", "Truelux"),
         ("DJANGO_THROTTLE_CATALOG", "600/fortnight"),
         ("DJANGO_THROTTLE_CATALOG", "lots/hour"),
+        ("DJANGO_THROTTLE_QUOTE", "600/m"),
     ],
 )
 def test_a_malformed_value_fails_at_import(clean_env, name, value):

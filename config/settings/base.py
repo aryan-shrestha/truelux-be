@@ -205,6 +205,10 @@ REST_FRAMEWORK = {
         # Checkout writes and holds row locks for the length of its transaction,
         # which makes it more expensive to abuse than any read endpoint here.
         "checkout": read.throttle_rate("DJANGO_THROTTLE_CHECKOUT"),
+        # The bag page quotes on every quantity change, so the quote needs a ceiling
+        # near browsing's. Sharing checkout's counter would let quoting exhaust the
+        # customer's allowance to actually place the order.
+        "quote": read.throttle_rate("DJANGO_THROTTLE_QUOTE"),
         # The token endpoints are a password-guessing surface.
         "auth": read.throttle_rate("DJANGO_THROTTLE_AUTH"),
         "admin": read.throttle_rate("DJANGO_THROTTLE_ADMIN"),

@@ -131,6 +131,8 @@ services:
         value: 20/hour
       - key: DJANGO_THROTTLE_CHECKOUT
         value: 30/hour
+      - key: DJANGO_THROTTLE_QUOTE
+        value: 600/hour
       - key: DJANGO_THROTTLE_AUTH
         value: 10/minute
       - key: DJANGO_THROTTLE_ADMIN

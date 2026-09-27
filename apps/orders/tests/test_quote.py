@@ -187,17 +187,45 @@ def test_a_shortfall_is_422_insufficient_stock_without_the_count(api_client, shi
     assert "available" not in response.data["error"]["details"]
 
 
-def test_the_quote_shares_the_checkout_throttle(api_client, shipping_settings):
+def test_the_quote_has_its_own_throttle(api_client, shipping_settings):
     items = _lines(_variant(stock=50), quantity=1)
 
     with mock.patch.object(
         SimpleRateThrottle,
         "THROTTLE_RATES",
-        {**SimpleRateThrottle.THROTTLE_RATES, "checkout": "2/minute"},
+        {**SimpleRateThrottle.THROTTLE_RATES, "quote": "2/minute"},
     ):
         statuses = [_quote(api_client, items=items).status_code for _ in range(3)]
 
     assert statuses == [200, 200, 429]
+
+
+def test_quotes_do_not_consume_the_checkout_allowance(api_client, shipping_settings):
+    items = _lines(_variant(stock=50), quantity=1)
+
+    with mock.patch.object(
+        SimpleRateThrottle,
+        "THROTTLE_RATES",
+        {**SimpleRateThrottle.THROTTLE_RATES, "checkout": "1/minute", "quote": "100/minute"},
+    ):
+        quotes = [_quote(api_client, items=items).status_code for _ in range(5)]
+        checkout = api_client.post(
+            reverse("v1:checkout"),
+            {
+                "items": items,
+                "email": "customer@example.com",
+                "phone": "9800000000",
+                "full_name": "Asha Rai",
+                "address_line": "1 Test Road",
+                "city": "Kathmandu",
+                "district": "Kathmandu",
+                "payment_method": PaymentMethod.COD.value,
+            },
+            format="json",
+        )
+
+    assert quotes == [200] * 5
+    assert checkout.status_code == 201
 
 
 def test_shipping_serves_the_merchant_settings(api_client, shipping_settings):
