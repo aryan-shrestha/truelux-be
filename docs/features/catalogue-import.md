@@ -60,7 +60,9 @@ WebP, 5 MB), now in `apps/catalog/constants.py` and shared by both.
   types; `catalogue_rows()` exports every brand, category (parents first), shade,
   size, skin type, product and variant. Image and logo cells hold the stored names'
   basenames, the primary image first; alt text is the first image's.
-- `apps/catalog/workbook/reader.py` — reads each sheet by header name, skips row 2
+- `apps/catalog/workbook/reader.py` — reads each sheet by header name (a missing
+  required column is a problem; a missing optional column reads as blank on every
+  row; an unknown column is ignored), skips row 2
   and blank rows, trims text, and parses each cell by kind, accepting numbers typed as
   text and `yes`/`YES`/`Y`/`no`/`N`. Each problem is a `Problem` that prints as
   `Sheet "Products", row 7, column "Brand": "Lumiere" is not on the Brands sheet`.
@@ -159,10 +161,10 @@ service's `catalog.stock_set` audit line.
 - After a partly failed upload, a product that got some of its images is skipped
   on the next run; use `--replace-images` for it.
 - Deleting or replacing an image leaves the Cloudinary asset (`media-storage.md`).
-- The Variants sheet has seven columns since sale prices (`sale-prices.md`): the
-  last is **Compare-at price (NPR)**. A workbook made before that fails with
-  `the column "Compare-at price (NPR)" is missing from row 1`; add the header or
-  re-export the template.
+- A missing optional column reads as blank, and blank means the default, so it
+  clears what the database holds. A workbook made before sale prices has no
+  **Compare-at price (NPR)** column: it imports cleanly, but it ends every sale set
+  in the admin app. Re-export before importing if sales are running.
 - The dropdowns cover rows 3–1000. The importer reads every row regardless.
 - Excel may store a number typed into a text column (an SKU like `10023`) as a float;
   the reader turns `10023.0` back into `10023`.
@@ -216,7 +218,9 @@ Whoever holds the database and Cloudinary credentials. There is no API.
   - 33 validation cases (including a compare-at not above the base price or the
     override), each asserting its sheet/row/column message and that nothing
     was written; all problems reported at once; images without `--images`; an SKU of
-    another product; a missing sheet or column; a file that is not a workbook;
+    another product; a missing sheet or required column; a missing optional column
+    read as blank and an unknown one ignored; a workbook without the Compare-at
+    column imports cleanly; a file that is not a workbook;
   - images and logos uploaded, first primary; kept without `--replace-images`,
     replaced with it; uploads happen outside any transaction, after the rows exist;
     a failed upload is reported and the rest continue;

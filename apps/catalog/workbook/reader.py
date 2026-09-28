@@ -89,13 +89,19 @@ def _read_sheet(sheet: Sheet, cells: Any, problems: list[Problem]) -> list[Row]:
 def _header_positions(
     sheet: Sheet, values: tuple[Any, ...], problems: list[Problem]
 ) -> dict[str, int] | None:
+    """A missing optional column reads as blank on every row, so a workbook filled in
+    before that column was added still imports. Unknown columns are ignored."""
     found = {str(value).strip(): index for index, value in enumerate(values) if value}
-    missing = [column.header for column in sheet.columns if column.header not in found]
+    missing = [
+        column.header for column in sheet.columns if column.required and column.header not in found
+    ]
     for header in missing:
         problems.append(Problem(sheet.title, f'the column "{header}" is missing from row 1'))
     if missing:
         return None
-    return {column.header: found[column.header] for column in sheet.columns}
+    return {
+        column.header: found[column.header] for column in sheet.columns if column.header in found
+    }
 
 
 def _read_row(
@@ -107,8 +113,8 @@ def _read_row(
 ) -> Row:
     row = Row(sheet, number)
     for column in sheet.columns:
-        position = positions[column.header]
-        raw = values[position] if position < len(values) else None
+        position = positions.get(column.header)
+        raw = values[position] if position is not None and position < len(values) else None
         if _is_blank(raw):
             if column.required:
                 problems.append(Problem(sheet.title, "is required", number, column.header))
