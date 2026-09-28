@@ -70,6 +70,8 @@ class Command(BaseCommand):
                 f"  {sheet.title}: {tally.created} created, {tally.updated} updated, "
                 f"{tally.unchanged} unchanged"
             )
+            for header in report.absent_columns.get(sheet, []):
+                self.stdout.write(f'    column "{header}" not in workbook, left unchanged')
             if tally.not_in_workbook:
                 self.stdout.write(
                     f"    {len(tally.not_in_workbook)} not in workbook, left unchanged: "

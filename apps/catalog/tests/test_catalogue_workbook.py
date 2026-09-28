@@ -607,35 +607,68 @@ def test_a_missing_sheet_or_column_is_a_problem(tmp_path, media):
     assert 'Sheet "Brands": the column "Name" is missing from row 1' in errors
 
 
+def _drop_column(path: Path, sheet: Sheet, header: str) -> None:
+    workbook = load_workbook(path)
+    worksheet = workbook[sheet.title]
+    headers = [cell.value for cell in worksheet[1]]
+    worksheet.delete_cols(headers.index(header) + 1)
+    workbook.save(path)
+
+
 @pytest.mark.django_db
-def test_a_workbook_from_before_the_compare_at_column_still_imports(tmp_path, media):
+def test_an_old_layout_workbook_leaves_an_existing_compare_at_intact(tmp_path, media):
     run_import(write(tmp_path, catalogue()))
-    exported = tmp_path / "export.xlsx"
-    call_command("export_catalogue", str(exported), stdout=StringIO())
-    workbook = load_workbook(exported)
-    variants = workbook[VARIANTS.title]
-    headers = [cell.value for cell in variants[1]]
-    variants.delete_cols(headers.index("Compare-at price (NPR)") + 1)
-    workbook.save(exported)
-    ProductVariant.objects.update(compare_at_price=None)
+    rows = catalogue()
+    _set(rows, VARIANTS, 0, "Stock", 30)
+    path = write(tmp_path, rows, "old.xlsx")
+    _drop_column(path, VARIANTS, "Compare-at price (NPR)")
 
-    output = run_import(exported)
+    output = run_import(path)
 
-    for sheet in DATA_SHEETS:
-        assert f"{sheet.title}: 0 created, 0 updated," in output
+    variant = ProductVariant.objects.get(sku="GL-ROSE-30")
+    assert (variant.stock_quantity, variant.compare_at_price) == (30, Decimal("2900.00"))
+    assert 'column "Compare-at price (NPR)" not in workbook, left unchanged' in output
+
+
+@pytest.mark.django_db
+def test_an_old_layout_workbook_creates_variants_with_no_compare_at(tmp_path, media):
+    path = write(tmp_path, catalogue())
+    _drop_column(path, VARIANTS, "Compare-at price (NPR)")
+
+    run_import(path)
+
+    assert ProductVariant.objects.count() == 2
     assert not ProductVariant.objects.filter(compare_at_price__isnull=False).exists()
 
 
 @pytest.mark.django_db
-def test_a_missing_optional_column_reads_as_blank_and_an_unknown_one_is_ignored(tmp_path, media):
-    path = write(tmp_path, catalogue())
+def test_a_missing_optional_column_leaves_existing_rows_alone(tmp_path, media):
+    rows = catalogue()
+    _set(rows, BRANDS, 0, "Active", "No")
+    run_import(write(tmp_path, rows))
+    rows = catalogue()
+    _set(rows, BRANDS, 0, "Description", "Now with SPF.")
+    path = write(tmp_path, rows, "renamed.xlsx")
     workbook = load_workbook(path)
     workbook["Brands"]["D1"] = "Is active"
     workbook.save(path)
 
-    run_import(path)
+    output = run_import(path)
 
-    assert Brand.objects.get().is_active is True
+    brand = Brand.objects.get()
+    assert (brand.description, brand.is_active) == ("Now with SPF.", False)
+    assert 'column "Active" not in workbook, left unchanged' in output
+
+
+@pytest.mark.django_db
+def test_a_missing_column_that_identifies_rows_is_a_problem(tmp_path, media):
+    path = write(tmp_path, catalogue())
+    _drop_column(path, VARIANTS, "Shade")
+
+    errors = failed_import(path)
+
+    assert 'Sheet "Variants": the column "Shade" is missing from row 1' in errors
+    assert not Product.objects.exists()
 
 
 def test_a_file_that_is_not_a_workbook_is_refused(tmp_path):

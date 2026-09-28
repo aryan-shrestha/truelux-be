@@ -205,9 +205,10 @@ images), with or without `?on_sale=`.
   Ordering the subquery by the `Coalesce(..., OuterRef(...))` expression directly
   fails at runtime with "may only be used in a subquery".
 - A workbook made from the template before this change has no Compare-at column.
-  It still imports, because the reader treats a missing optional column as blank.
-  Blank means "not on sale", though, so importing it clears every compare-at the
-  admin app has set.
+  It still imports: a missing optional column means "not provided", so existing
+  variants keep their compare-at, new variants get none, and the summary prints
+  `column "Compare-at price (NPR)" not in workbook, left unchanged`. A present
+  column with a blank cell does clear the compare-at and ends that sale.
 - In the importer, an existing variant is given the product instance just written
   (`self.products`), because `Catalogue.variants` loaded its own copy of the product.
   Without that, a run that lowers a base price and starts a sale in the same run would
@@ -299,8 +300,9 @@ Reads are public. Writes are staff-only, through the admin API.
 - `apps/orders/tests/test_quote.py` — a variant on sale is quoted at its price.
 - `apps/catalog/tests/test_catalogue_workbook.py` — the example catalogue carries a
   compare-at, so the export → import round trip covers it; import sets and clears
-  it; a workbook without the column imports cleanly; a sale starts in the same run
-  that lowers the base price; a compare-at not
+  it with a present blank cell; a workbook without the column keeps existing
+  compare-at prices and creates new variants without one; a sale starts in the same
+  run that lowers the base price; a compare-at not
   above the base price or the override is reported by sheet, row and column; one
   checked against a product only in the database.
 - `apps/catalog/tests/test_seed_demo.py` — the seed data has six sale variants, a

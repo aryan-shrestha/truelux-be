@@ -60,9 +60,12 @@ WebP, 5 MB), now in `apps/catalog/constants.py` and shared by both.
   types; `catalogue_rows()` exports every brand, category (parents first), shade,
   size, skin type, product and variant. Image and logo cells hold the stored names'
   basenames, the primary image first; alt text is the first image's.
-- `apps/catalog/workbook/reader.py` — reads each sheet by header name (a missing
-  required column is a problem; a missing optional column reads as blank on every
-  row; an unknown column is ignored), skips row 2
+- `apps/catalog/workbook/reader.py` — reads each sheet by header name. A missing
+  required column is a problem, and so is a missing **Parent category** (Categories)
+  or **Shade** (Variants): their cells may be blank, but they identify the row
+  (`Column.identifies`). Any other missing optional column is recorded on each
+  `Row` as absent (`Row.provides(header)` is false) and in the result's
+  `absent_columns`. An unknown column is ignored. The reader skips row 2
   and blank rows, trims text, and parses each cell by kind, accepting numbers typed as
   text and `yes`/`YES`/`Y`/`no`/`N`. Each problem is a `Problem` that prints as
   `Sheet "Products", row 7, column "Brand": "Lumiere" is not on the Brands sheet`.
@@ -132,8 +135,12 @@ not in the workbook. A category under a different parent is a different category
 **Decision**
 
 A blank optional cell means its default: empty text, sort order 0, brand active,
-product unpublished, no price override, no compare-at price (which ends a sale). Blank image and logo cells leave the
-existing files alone.
+product unpublished, no price override, no compare-at price (which ends a sale).
+Blank image and logo cells leave the existing files alone.
+
+A missing optional column is different: it was not provided, so existing rows keep
+the field and new rows get the model default. Only the columns a workbook has are
+authoritative.
 
 ### Decision: images only where there are none
 
@@ -161,10 +168,13 @@ service's `catalog.stock_set` audit line.
 - After a partly failed upload, a product that got some of its images is skipped
   on the next run; use `--replace-images` for it.
 - Deleting or replacing an image leaves the Cloudinary asset (`media-storage.md`).
-- A missing optional column reads as blank, and blank means the default, so it
-  clears what the database holds. A workbook made before sale prices has no
-  **Compare-at price (NPR)** column: it imports cleanly, but it ends every sale set
-  in the admin app. Re-export before importing if sales are running.
+- A missing optional column is not the same as a blank cell. A missing column means
+  "not provided": an existing row keeps that field (the importer's `_provided` drops
+  it from the update, and missing Skin types or Published columns leave those
+  alone too), and a new row gets the model default. A blank cell in a present
+  column still means the default or clear. The summary prints
+  `column "X" not in workbook, left unchanged` for each missing column, so a
+  workbook made before sale prices imports without touching any compare-at price.
 - The dropdowns cover rows 3–1000. The importer reads every row regardless.
 - Excel may store a number typed into a text column (an SKU like `10023`) as a float;
   the reader turns `10023.0` back into `10023`.
@@ -218,9 +228,10 @@ Whoever holds the database and Cloudinary credentials. There is no API.
   - 33 validation cases (including a compare-at not above the base price or the
     override), each asserting its sheet/row/column message and that nothing
     was written; all problems reported at once; images without `--images`; an SKU of
-    another product; a missing sheet or required column; a missing optional column
-    read as blank and an unknown one ignored; a workbook without the Compare-at
-    column imports cleanly; a file that is not a workbook;
+    another product; a missing sheet or required column; a missing Shade column (it
+    identifies the row); a missing optional column leaves existing rows alone and is
+    named in the summary; an old-layout workbook keeps existing compare-at prices and
+    creates new variants without one; a file that is not a workbook;
   - images and logos uploaded, first primary; kept without `--replace-images`,
     replaced with it; uploads happen outside any transaction, after the rows exist;
     a failed upload is reported and the rest continue;

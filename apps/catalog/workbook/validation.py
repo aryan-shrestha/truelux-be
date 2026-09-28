@@ -335,6 +335,9 @@ class Validator:
         if compare_at is None:
             return
         price = row["Price override (NPR)"]
+        existing = self.catalogue.variants.get(row["SKU"]) if row["SKU"] else None
+        if not row.provides("Price override (NPR)") and existing is not None:
+            price = existing.price_override
         if price is None:
             # The sheet's base price, when the product is on it, is the one the
             # import is about to write.

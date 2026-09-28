@@ -31,6 +31,9 @@ class Column:
     max_length: int | None = None
     # A dropdown of the Name column of this sheet.
     choices_from: str | None = None
+    # Part of how a row is matched to the database, so its header must be present
+    # even though its cells may be blank.
+    identifies: bool = False
 
 
 @dataclass(frozen=True)
@@ -103,6 +106,7 @@ CATEGORIES = Sheet(
             "category from this sheet: categories are one level deep only.",
             28,
             choices_from="Categories",
+            identifies=True,
         ),
         _sort_order(),
     ),
@@ -273,6 +277,7 @@ VARIANTS = Sheet(
             "Optional. A shade from the Shades sheet. Blank means the product has no shade.",
             18,
             choices_from="Shades",
+            identifies=True,
         ),
         Column(
             "Stock",
