@@ -66,7 +66,16 @@ class AdminVariantSerializer(serializers.ModelSerializer[ProductVariant]):
 
     class Meta:
         model = ProductVariant
-        fields = ("id", "sku", "size", "shade", "stock_quantity", "price_override", "price")
+        fields = (
+            "id",
+            "sku",
+            "size",
+            "shade",
+            "stock_quantity",
+            "price_override",
+            "price",
+            "compare_at_price",
+        )
 
 
 class AdminImageSerializer(serializers.ModelSerializer[ProductImage]):
@@ -82,6 +91,7 @@ class AdminProductListSerializer(serializers.ModelSerializer[Product]):
     category = CategoryRefSerializer(read_only=True)
     variant_count = serializers.IntegerField(read_only=True)
     total_stock = serializers.IntegerField(read_only=True)
+    on_sale = serializers.BooleanField(read_only=True)
     primary_image_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -97,6 +107,7 @@ class AdminProductListSerializer(serializers.ModelSerializer[Product]):
             "sort_order",
             "variant_count",
             "total_stock",
+            "on_sale",
             "primary_image_url",
             "created_at",
             "updated_at",
@@ -167,6 +178,13 @@ class VariantWriteSerializer(serializers.Serializer[ProductVariant]):
     )
     stock_quantity = serializers.IntegerField(min_value=0, required=False)
     price_override = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        allow_null=True,
+        required=False,
+    )
+    compare_at_price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
         min_value=Decimal("0.01"),

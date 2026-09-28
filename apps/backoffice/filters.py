@@ -5,6 +5,7 @@ from django.db.models import Exists, OuterRef, QuerySet
 
 from apps.backoffice.constants import LOW_STOCK_THRESHOLD
 from apps.backoffice.selectors import start_of_shop_day
+from apps.catalog.filters import OnSaleFilter
 from apps.catalog.models import Product, ProductVariant
 from apps.orders.constants import OrderStatus
 from apps.orders.models import Order
@@ -15,10 +16,11 @@ class AdminProductFilter(django_filters.FilterSet):  # type: ignore[misc]  # dja
     category = django_filters.UUIDFilter(field_name="category_id")
     is_published = django_filters.BooleanFilter()
     low_stock = django_filters.BooleanFilter(method="filter_low_stock")
+    on_sale = OnSaleFilter()
 
     class Meta:
         model = Product
-        fields = ("brand", "category", "is_published", "low_stock")
+        fields = ("brand", "category", "is_published", "low_stock", "on_sale")
 
     def filter_low_stock(
         self, queryset: QuerySet[Product], name: str, value: bool
