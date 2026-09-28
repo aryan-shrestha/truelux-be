@@ -9,6 +9,7 @@ from apps.catalog.models import (
     Shade,
     Size,
     SkinType,
+    discount_percent,
 )
 
 
@@ -74,12 +75,23 @@ class ProductVariantSerializer(serializers.ModelSerializer[ProductVariant]):
     size = SizeSerializer(read_only=True)
     shade = ShadeSerializer(read_only=True, allow_null=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    on_sale = serializers.BooleanField(read_only=True)
+    discount_percent = serializers.IntegerField(read_only=True, allow_null=True)
     in_stock = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductVariant
         # No `stock_quantity`: exact inventory is commercially sensitive and this is public.
-        fields = ("id", "size", "shade", "price", "in_stock")
+        fields = (
+            "id",
+            "size",
+            "shade",
+            "price",
+            "compare_at_price",
+            "on_sale",
+            "discount_percent",
+            "in_stock",
+        )
 
     def get_in_stock(self, obj: ProductVariant) -> bool:
         return obj.stock_quantity > 0
@@ -90,6 +102,18 @@ class ProductListSerializer(serializers.ModelSerializer[Product]):
     category = CategorySerializer(read_only=True)
     primary_image = serializers.SerializerMethodField()
     in_stock = serializers.BooleanField(read_only=True)
+    on_sale = serializers.SerializerMethodField()
+    sale_price = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True, allow_null=True
+    )
+    compare_at_price = serializers.DecimalField(
+        source="sale_compare_at_price",
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+        allow_null=True,
+    )
+    discount_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -103,6 +127,23 @@ class ProductListSerializer(serializers.ModelSerializer[Product]):
             "category",
             "primary_image",
             "in_stock",
+            "on_sale",
+            "sale_price",
+            "compare_at_price",
+            "discount_percent",
+        )
+
+    # sale_price and sale_compare_at_price are annotated by the selectors from the
+    # sale variant, and are None when no variant is on sale.
+    def get_on_sale(self, obj: Product) -> bool:
+        return getattr(obj, "sale_price", None) is not None
+
+    def get_discount_percent(self, obj: Product) -> int | None:
+        sale_price = getattr(obj, "sale_price", None)
+        if sale_price is None:
+            return None
+        return discount_percent(
+            price=sale_price, compare_at_price=getattr(obj, "sale_compare_at_price", None)
         )
 
     def get_primary_image(self, obj: Product) -> dict[str, str] | None:

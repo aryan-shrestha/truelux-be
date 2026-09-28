@@ -1,4 +1,5 @@
-from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
+from django.db.models import Count, Exists, F, OuterRef, Prefetch, Q, QuerySet, Subquery
+from django.db.models.functions import Coalesce
 
 from apps.catalog.models import Brand, Category, Product, ProductVariant, Shade, Size, SkinType
 
@@ -10,13 +11,36 @@ VISIBLE_PRODUCT = Q(is_published=True, brand__is_active=True)
 _HAS_STOCK = Exists(ProductVariant.objects.filter(product=OuterRef("pk"), stock_quantity__gt=0))
 
 
+def _on_sale_variants() -> QuerySet[ProductVariant]:
+    """The outer product's variants whose compare-at is above their resolved price,
+    the SQL twin of ProductVariant.on_sale."""
+    return (
+        ProductVariant.objects.filter(product=OuterRef("pk"))
+        .annotate(resolved_price=Coalesce("price_override", OuterRef("base_price")))
+        .filter(compare_at_price__gt=F("resolved_price"))
+    )
+
+
+PRODUCT_ON_SALE = Exists(_on_sale_variants())
+
+
+def _with_sale_variant(products: QuerySet[Product]) -> QuerySet[Product]:
+    """Annotates the sale variant's price and compare-at: the cheapest on-sale variant,
+    ties going to the smaller size. Both are None when nothing is on sale."""
+    sale_variant = _on_sale_variants().order_by("resolved_price", "size__sort_order", "pk")[:1]
+    return products.annotate(
+        sale_price=Subquery(sale_variant.values("resolved_price")),
+        sale_compare_at_price=Subquery(sale_variant.values("compare_at_price")),
+    )
+
+
 def _visible_products() -> QuerySet[Product]:
     return Product.objects.filter(VISIBLE_PRODUCT)
 
 
 def list_published_products() -> QuerySet[Product]:
     return (
-        _visible_products()
+        _with_sale_variant(_visible_products())
         .annotate(in_stock=_HAS_STOCK)
         .select_related("brand", "category")
         .prefetch_related("images")
@@ -37,7 +61,7 @@ def get_published_product_by_slug(*, slug: str) -> Product:
     )
 
     return (
-        _visible_products()
+        _with_sale_variant(_visible_products())
         .annotate(in_stock=_HAS_STOCK)
         .select_related("brand", "category")
         .prefetch_related(ordered_variants, "images", "skin_types")
