@@ -79,7 +79,7 @@ def test_the_database_refuses_a_compare_at_of_zero():
 
 @pytest.mark.parametrize("compare_at", ["3200.00", "2000.00"])
 def test_create_variant_rejects_a_compare_at_not_above_the_price(compare_at):
-    product = ProductFactory(base_price=Decimal("3200.00"))
+    product = ProductFactory.create(base_price=Decimal("3200.00"))
 
     with pytest.raises(CompareAtNotAbovePrice):
         create_variant(

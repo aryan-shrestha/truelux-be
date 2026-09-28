@@ -133,17 +133,16 @@ def test_seed_includes_the_shapes_the_storefront_has_to_survive(seeded):
 
 def test_the_seed_data_puts_six_variants_on_sale_by_override_and_by_base_price():
     sale_variants = [
-        (product, variant)
+        (product, variant, variant.compare_at_price)
         for product in PRODUCTS
         for variant in product.variants
         if variant.compare_at_price is not None
     ]
 
     assert len(sale_variants) == 6
-    assert {variant.price_override is None for _, variant in sale_variants} == {True, False}
-    for product, variant in sale_variants:
-        price = variant.price_override or product.base_price
-        assert variant.compare_at_price > price, product.slug
+    assert {variant.price_override is None for _, variant, _ in sale_variants} == {True, False}
+    for product, variant, compare_at in sale_variants:
+        assert compare_at > (variant.price_override or product.base_price), product.slug
         assert product.is_published, product.slug
 
 
