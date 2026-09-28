@@ -345,6 +345,19 @@ def test_an_image_of_the_wrong_type_is_a_400(staff_client):
     assert "image" in response.data["error"]["details"]
 
 
+def test_an_image_upload_that_is_not_multipart_is_a_415(staff_client):
+    product = ProductFactory()
+
+    response = staff_client.post(
+        reverse("v1:admin-product-images", args=[product.pk]),
+        "image=%89PNG&alt_text=Front",
+        content_type="application/x-www-form-urlencoded",
+    )
+
+    assert response.status_code == 415
+    assert response.data["error"]["code"] == "unsupported_media_type"
+
+
 def test_an_image_over_5_mb_is_a_400(staff_client):
     product = ProductFactory()
     upload = image_upload()

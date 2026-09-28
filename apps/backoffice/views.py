@@ -185,7 +185,7 @@ class VariantDetailView(StaffAPIView):
 
 
 class ProductImageCreateView(StaffAPIView):
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser,)
 
     @extend_schema(request=ImageCreateSerializer, responses={201: AdminImageSerializer})
     def post(self, request: Request, product_id: UUID) -> Response:

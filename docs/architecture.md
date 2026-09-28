@@ -431,7 +431,7 @@ so clients parse one shape:
 
 | Condition                                               | Status    | `code`                              |
 | ------------------------------------------------------- | --------- | ----------------------------------- |
-| Request body was not valid JSON                         | 400       | `parse_error`                       |
+| Request body could not be parsed                        | 400       | `parse_error`                       |
 | Serializer or field validation failed                   | 400       | `validation_error`                  |
 | Missing or invalid credentials                          | 401       | `authentication_failed`             |
 | Authenticated but not permitted                         | 403       | `permission_denied`                 |

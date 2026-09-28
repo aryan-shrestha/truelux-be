@@ -1,5 +1,5 @@
 import pytest
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, TooManyFieldsSent
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from rest_framework import status
@@ -97,6 +97,16 @@ def test_a_missing_object_response_carries_no_lookup_detail():
     response = _handle(ObjectDoesNotExist("Product matching query does not exist."))
 
     assert "Product" not in str(response.data)
+
+
+def test_a_suspicious_request_body_maps_to_400_parse_error_without_detail(caplog):
+    response = _handle(TooManyFieldsSent("The number of GET/POST parameters exceeded 1000."))
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.data["error"]["code"] == "parse_error"
+    assert "parameters" not in str(response.data)
+    assert "request.suspicious_operation" in caplog.text
+    assert "request.unhandled_exception" not in caplog.text
 
 
 def test_permission_denied_maps_to_403():

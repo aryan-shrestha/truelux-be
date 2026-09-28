@@ -91,13 +91,20 @@ The intended implementation:
   `DoesNotExist` propagate and let the handler answer 404 since before this
   feature, but no such branch existed and none was noticed, because no selector
   had an HTTP caller until #5. An unknown slug would have been a logged 500
+- `apps/core/exceptions.py` — Django's `SuspiciousOperation` family returns 400
+  `parse_error` and logs `request.suspicious_operation` at warning. Django raises
+  these while parsing a malformed or oversized body (`TooManyFieldsSent`,
+  `RequestDataTooBig`). Before this they fell through to the 500 path: an image
+  sent with a url-encoded `Content-Type` split its bytes on `&` into more than
+  `DATA_UPLOAD_MAX_NUMBER_FIELDS` fields and was reported as a server error
 - Every published code is now reachable from a real endpoint. The 422 row closed
   with `checkout` (#7); the 404 row is produced by the `ObjectDoesNotExist` branch
   on every selector miss; 409 is produced by the catalogue's uniqueness
   constraints
-- `apps/core/tests/test_exceptions.py` — 31 tests covering the `DomainError`
+- `apps/core/tests/test_exceptions.py` — 32 tests covering the `DomainError`
   mapping, per-raise message override, Django and DRF validation errors, every row
-  of the status/code table, the 409 conflict path, the 500 path and its logging,
+  of the status/code table, the 409 conflict path, the 400 path for Django's
+  suspicious-request errors, the 500 path and its logging,
   the generic fallback, and a parametrised check that every failure shares one
   envelope shape
 
@@ -182,6 +189,10 @@ but the default is deliberate and should rarely be overridden.
 - **A passing test suite does not mean this feature is done.** The code the tests
   assert against is the code that disagrees with `architecture.md`. Read the status
   table, not the green run.
+- **`SuspiciousOperation` is a client error, not a server one.** Django's own
+  handler answers it with 400; DRF's does not know it, so without the branch it
+  was a logged 500. The response is DRF's flat parse error, never Django's
+  message, which names the setting that was exceeded.
 - **`ObjectDoesNotExist` is mapped before DRF's handler runs**, so a `.get()` that
   misses anywhere below the view becomes a 404 rather than a 500. That is the
   contract `convention.md` promises selectors, and the cost is that a genuine
@@ -252,6 +263,9 @@ All in `apps/core/tests/test_exceptions.py`:
   `test_a_missing_object_response_carries_no_lookup_detail` — the
   `ObjectDoesNotExist` branch, and that Django's model-naming message is
   discarded
+- `test_a_suspicious_request_body_maps_to_400_parse_error_without_detail` —
+  `TooManyFieldsSent` is a 400 `parse_error`, logged as a warning and not as an
+  unhandled exception
 - `test_every_failure_shares_one_envelope_shape`
 
 ---

@@ -1,6 +1,6 @@
 from typing import Any
 
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, SuspiciousOperation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from rest_framework import status
@@ -124,6 +124,13 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response |
     # arrive here as the same exception and leave as the same 404.
     if isinstance(exc, ObjectDoesNotExist):
         exc = NotFound()
+
+    # Django raises these while parsing a malformed or oversized body, such as
+    # TooManyFieldsSent and RequestDataTooBig. They are the client's fault, and
+    # Django itself answers them with a 400.
+    if isinstance(exc, SuspiciousOperation):
+        logger.warning("request.suspicious_operation", error=type(exc).__name__)
+        exc = ParseError()
 
     response = drf_exception_handler(exc, context)
 

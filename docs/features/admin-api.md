@@ -162,6 +162,15 @@ foreign-key failure reported as `409 conflict`.
 - Deleting an image deletes the row only; the stored asset is left behind.
 - The staff app must send `multipart/form-data` for image uploads and brand logos;
   every other write is JSON.
+- `POST products/{id}/images/` accepts only `multipart/form-data`; anything else is
+  `415 unsupported_media_type`. It used to accept url-encoded bodies too, which
+  cannot carry a file. On 2026-09-28 the admin's axios client (fetch adapter, on
+  the server) sent a multipart body labelled `application/x-www-form-urlencoded`,
+  because axios defaults POSTs to that type and only clears it for `FormData` in a
+  browser. Django split the image on `&` and failed with a 500. The fix for the
+  client lives in the admin repo; brand and product writes still accept url-encoded
+  bodies through `JSON_AND_MULTIPART`, where that mislabelling now gets a 400
+  `parse_error` rather than a 500.
 
 ---
 
@@ -325,7 +334,8 @@ tokens get `403`.
   brand is 400; publishing without variants is 422 on create and update; deleting
   an ordered product or variant is 409; list shape, filters and a constant three
   queries; `skin_type_ids` set, kept, replaced and cleared, unknown id 400; variant stock edits call `set_variant_stock` (mocked) and reject
-  negatives; image upload, primary promotion, wrong type and >5 MB are 400.
+  negatives; image upload, primary promotion, wrong type and >5 MB are 400; a
+  non-multipart upload is 415.
 - `test_taxonomy.py` — brand list includes inactive brands with counts; logo upload
   and slug derivation; shade hex validation; deleting a referenced brand, shade,
   size or category is 409; duplicate names are 409; category cycles are 400; skin

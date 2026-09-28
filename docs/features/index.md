@@ -11,7 +11,7 @@ Redis were removed at the fork.
 | #   | Feature             | Status      | Documentation                     | Depends on | Last updated |
 | --- | ------------------- | ----------- | --------------------------------- | ---------- | ------------ |
 | 1   | staff-identity      | Implemented | `features/staff-identity.md`      | —          | 2026-09-25   |
-| 2   | api-error-contract  | Implemented | `features/api-error-contract.md`  | 1          | 2026-09-26   |
+| 2   | api-error-contract  | Implemented | `features/api-error-contract.md`  | 1          | 2026-09-28   |
 | 3   | media-storage       | Implemented | `features/media-storage.md`       | —          | 2026-09-25   |
 | 4   | product-catalog     | Implemented | `features/product-catalog.md`     | 2, 3       | 2026-09-26   |
 | 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-26   |
@@ -25,7 +25,7 @@ Redis were removed at the fork.
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-26   |
-| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15, 19 | 2026-09-27 |
+| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15, 19 | 2026-09-28 |
 | 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
 | 18  | catalogue-import    | Implemented | `features/catalogue-import.md`    | 3, 4, 17   | 2026-09-26   |
 | 19  | checkout-quote-and-shipping | Implemented | `features/checkout-quote-and-shipping.md` | 6, 7, 16 | 2026-09-27 |
