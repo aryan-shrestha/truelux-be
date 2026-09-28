@@ -98,8 +98,8 @@ Delivered by `staff-identity` rather than by this feature, but complete and veri
   on the admin API's image and brand endpoints only (`admin-api.md`), which validate
   JPEG/PNG/WebP up to 5 MB. `add_product_image` uploads before it opens a
   transaction; admin logo uploads save inside the service's plain `save()`.
-- `seed_demo` generates its images and logos in memory with Pillow and saves them
-  through the default storage.
+- `seed_demo` downloads its product photos and brand logos (falling back to a Pillow
+  placeholder when a download fails) and saves them through the default storage.
 
 Completed by this feature's own closing pass:
 

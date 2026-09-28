@@ -20,7 +20,7 @@ Redis were removed at the fork.
 | 8   | payments            | Implemented | `features/payments.md`            | 7          | 2026-09-25   |
 | 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-25   |
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
-| 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-26 |
+| 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-29 |
 | 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-27   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |

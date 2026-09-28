@@ -1,10 +1,15 @@
-"""Populate a development cosmetics catalogue: brands, categories, sizes, shades,
-skin types, products with variants, and generated placeholder images.
+"""Populate a development cosmetics catalogue: real Korean brands, categories, sizes,
+shades, skin types, products with variants, and their photographs downloaded from the
+brands' and retailers' stores.
 """
 
 import unicodedata
+from collections.abc import Callable
+from functools import partial
+from http.client import HTTPException
 from io import BytesIO
 from typing import Any
+from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -17,7 +22,9 @@ from apps.catalog.management.commands._seed_catalogue import (
     BRANDS,
     CATEGORIES,
     PRODUCTS,
+    RETIRED_BRAND_SLUGS,
     RETIRED_CATEGORY_SLUGS,
+    RETIRED_PRODUCT_SLUGS,
     SHADES,
     SIZES,
     SKIN_TYPES,
@@ -43,6 +50,14 @@ SEEDED_CATEGORY_SLUGS = (
 )
 IMAGE_SIZE = (800, 1000)
 LOGO_SIZE = (400, 400)
+DOWNLOAD_TIMEOUT_SECONDS = 15
+# Several store CDNs answer urllib's default "Python-urllib" agent with 403.
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+)
+# The formats the admin API accepts for an uploaded product image.
+IMAGE_EXTENSIONS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}
 
 
 def initials(name: str, limit: int = 3) -> str:
@@ -85,10 +100,25 @@ def placeholder_png(
     return buffer.getvalue()
 
 
+def fetch_image(url: str) -> tuple[bytes, str] | None:
+    """Download `url` and return its bytes and file extension, or None when it cannot
+    be fetched or is not a JPEG, PNG or WebP image (a CDN error page, for example).
+    """
+    request = Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310 - https constants
+    try:
+        with urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:  # noqa: S310 - as above
+            content = response.read()
+        with Image.open(BytesIO(content)) as image:
+            extension = IMAGE_EXTENSIONS.get(image.format or "")
+    except (OSError, ValueError, HTTPException):
+        return None
+    return (content, extension) if extension else None
+
+
 class Command(BaseCommand):
     help = (
-        "Populate a development cosmetics catalogue. Refuses to run outside DEBUG, unless "
-        "--deploy while SEED_DEMO_DATA is true."
+        "Populate a development catalogue of real Korean cosmetics. Refuses to run outside "
+        "DEBUG, unless --deploy while SEED_DEMO_DATA is true."
     )
 
     def add_arguments(self, parser: CommandParser) -> None:
@@ -140,7 +170,9 @@ class Command(BaseCommand):
         # Brands, sizes, shades and skin types are left alone: PROTECT keeps most of them
         # while anything refers to them, and get_or_create makes re-seeding them free.
         try:
-            deleted, _ = Product.objects.filter(slug__in=SEEDED_SLUGS).delete()
+            deleted, _ = Product.objects.filter(
+                slug__in=(*SEEDED_SLUGS, *RETIRED_PRODUCT_SLUGS)
+            ).delete()
         except ProtectedError as exc:
             raise CommandError(
                 "Seeded products are referenced by existing orders. "
@@ -155,6 +187,11 @@ class Command(BaseCommand):
         ).delete()
         self.stdout.write(f"Flushed {deleted} seeded categories.")
 
+        deleted, _ = Brand.objects.filter(
+            slug__in=RETIRED_BRAND_SLUGS, products__isnull=True
+        ).delete()
+        self.stdout.write(f"Flushed {deleted} retired brands.")
+
     def _seed_brands(self) -> dict[str, Brand]:
         brands: dict[str, Brand] = {}
         for order, spec in enumerate(BRANDS):
@@ -168,14 +205,33 @@ class Command(BaseCommand):
         return brands
 
     def _attach_logo(self, brand: Brand, spec: BrandSpec) -> None:
-        png = placeholder_png(
-            text=initials(spec.name, limit=2),
-            caption=spec.name,
-            top=spec.palette[0],
-            bottom=spec.palette[1],
-            size=LOGO_SIZE,
+        name, content = self._download(
+            spec.logo_urls,
+            stem=spec.slug,
+            placeholder=partial(
+                placeholder_png,
+                text=initials(spec.name, limit=2),
+                caption=spec.name,
+                top=spec.palette[0],
+                bottom=spec.palette[1],
+                size=LOGO_SIZE,
+            ),
         )
-        brand.logo.save(f"{spec.slug}.png", ContentFile(png), save=True)
+        brand.logo.save(name, content, save=True)
+
+    def _download(
+        self, urls: tuple[str, ...], *, stem: str, placeholder: Callable[[], bytes]
+    ) -> tuple[str, "ContentFile[bytes]"]:
+        for url in urls:
+            fetched = fetch_image(url)
+            if fetched:
+                content, extension = fetched
+                return f"{stem}.{extension}", ContentFile(content)
+        # One dead URL must not fail a deploy build that seeds the demo.
+        self.stderr.write(
+            self.style.WARNING(f"No image downloaded for {stem}; saved a placeholder.")
+        )
+        return f"{stem}.png", ContentFile(placeholder())
 
     def _seed_sizes(self) -> dict[str, Size]:
         sizes: dict[str, Size] = {}
@@ -288,13 +344,18 @@ class Command(BaseCommand):
 
     def _seed_images(self, product: Product, spec: ProductSpec, brand_spec: BrandSpec) -> None:
         top, bottom = brand_spec.palette
-        for order in range(spec.image_count):
-            png = placeholder_png(
-                text=initials(spec.name, limit=2),
-                caption=brand_spec.name,
-                top=top if order == 0 else bottom,
-                bottom=bottom if order == 0 else top,
-                size=IMAGE_SIZE,
+        for order, urls in enumerate(spec.image_urls):
+            name, content = self._download(
+                urls,
+                stem=f"{product.slug}-{order}",
+                placeholder=partial(
+                    placeholder_png,
+                    text=initials(spec.name, limit=2),
+                    caption=brand_spec.name,
+                    top=top if order == 0 else bottom,
+                    bottom=bottom if order == 0 else top,
+                    size=IMAGE_SIZE,
+                ),
             )
             image = ProductImage(
                 product=product,
@@ -302,5 +363,5 @@ class Command(BaseCommand):
                 sort_order=order,
                 is_primary=order == 0,
             )
-            image.image.save(f"{product.slug}-{order}.png", ContentFile(png), save=False)
+            image.image.save(name, content, save=False)
             image.save()

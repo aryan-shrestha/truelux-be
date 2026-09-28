@@ -1,7 +1,9 @@
 from decimal import Decimal
+from io import BytesIO
 
 import pytest
 from django.core.cache import cache
+from PIL import Image
 from rest_framework.test import APIClient
 
 from apps.orders.constants import SHIPPING_SETTINGS_ID
@@ -22,6 +24,22 @@ def user(db):
 @pytest.fixture(autouse=True)
 def _clear_throttle_counters():
     cache.clear()
+
+
+@pytest.fixture
+def seed_image_png() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (10, 10), "#F2C4CE").save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+@pytest.fixture(autouse=True)
+def _offline_seed_images(monkeypatch, seed_image_png):
+    # seed_demo downloads real product photographs; a test run must not.
+    monkeypatch.setattr(
+        "apps.catalog.management.commands.seed_demo.fetch_image",
+        lambda url: (seed_image_png, "png"),
+    )
 
 
 @pytest.fixture
