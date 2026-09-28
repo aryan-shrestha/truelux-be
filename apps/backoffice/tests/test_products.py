@@ -394,8 +394,15 @@ def test_compare_at_price_round_trips_and_clears(staff_client):
 
     assert set_response.status_code == 200
     assert set_response.data["compare_at_price"] == "3200.00"
-    assert detail.data["variants"][0]["compare_at_price"] == "3200.00"
+    assert set_response.data["on_sale"] is True
+    assert set_response.data["discount_percent"] == 15
+    variant_in_detail = detail.data["variants"][0]
+    assert variant_in_detail["compare_at_price"] == "3200.00"
+    assert variant_in_detail["on_sale"] is True
+    assert variant_in_detail["discount_percent"] == 15
     assert cleared.data["compare_at_price"] is None
+    assert cleared.data["on_sale"] is False
+    assert cleared.data["discount_percent"] is None
 
 
 def test_adding_a_variant_on_sale(staff_client):
@@ -414,6 +421,8 @@ def test_adding_a_variant_on_sale(staff_client):
 
     assert response.status_code == 201
     assert response.data["compare_at_price"] == "3200.00"
+    assert response.data["on_sale"] is True
+    assert response.data["discount_percent"] == 15
 
 
 @pytest.mark.parametrize("compare_at", ["2720.00", "2000.00", "0"])
@@ -447,3 +456,21 @@ def test_product_list_flags_and_filters_products_on_sale(staff_client):
     assert listed == {"Sale": True, "Full": False}
     assert [p["name"] for p in filtered.data["results"]] == ["Sale"]
     assert invalid.status_code == 400
+
+
+def test_a_repriced_variant_keeps_its_compare_at_but_is_not_on_sale(staff_client):
+    variant = ProductVariantFactory(
+        product=ProductFactory(base_price=Decimal("2720.00")),
+        compare_at_price=Decimal("3200.00"),
+    )
+
+    response = staff_client.patch(
+        reverse("v1:admin-variant-detail", args=[variant.pk]),
+        {"price_override": "3200.00"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["compare_at_price"] == "3200.00"
+    assert response.data["on_sale"] is False
+    assert response.data["discount_percent"] is None

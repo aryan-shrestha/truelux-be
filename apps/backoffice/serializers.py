@@ -63,6 +63,8 @@ class AdminVariantSerializer(serializers.ModelSerializer[ProductVariant]):
     size = SizeRefSerializer(read_only=True)
     shade = ShadeRefSerializer(read_only=True, allow_null=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    on_sale = serializers.BooleanField(read_only=True)
+    discount_percent = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = ProductVariant
@@ -75,6 +77,8 @@ class AdminVariantSerializer(serializers.ModelSerializer[ProductVariant]):
             "price_override",
             "price",
             "compare_at_price",
+            "on_sale",
+            "discount_percent",
         )
 
 
