@@ -661,13 +661,18 @@ def test_a_missing_optional_column_leaves_existing_rows_alone(tmp_path, media):
 
 
 @pytest.mark.django_db
-def test_a_missing_column_that_identifies_rows_is_a_problem(tmp_path, media):
+@pytest.mark.parametrize(
+    ("sheet", "column"),
+    [(VARIANTS, "Shade"), (CATEGORIES, "Parent category")],
+    ids=["shade", "parent-category"],
+)
+def test_a_missing_column_that_identifies_rows_is_a_problem(tmp_path, media, sheet, column):
     path = write(tmp_path, catalogue())
-    _drop_column(path, VARIANTS, "Shade")
+    _drop_column(path, sheet, column)
 
     errors = failed_import(path)
 
-    assert 'Sheet "Variants": the column "Shade" is missing from row 1' in errors
+    assert f'Sheet "{sheet.title}": the column "{column}" is missing from row 1' in errors
     assert not Product.objects.exists()
 
 

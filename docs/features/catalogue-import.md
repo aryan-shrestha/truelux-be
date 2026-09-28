@@ -228,8 +228,8 @@ Whoever holds the database and Cloudinary credentials. There is no API.
   - 33 validation cases (including a compare-at not above the base price or the
     override), each asserting its sheet/row/column message and that nothing
     was written; all problems reported at once; images without `--images`; an SKU of
-    another product; a missing sheet or required column; a missing Shade column (it
-    identifies the row); a missing optional column leaves existing rows alone and is
+    another product; a missing sheet or required column; a missing Shade or Parent
+    category column (each identifies the row); a missing optional column leaves existing rows alone and is
     named in the summary; an old-layout workbook keeps existing compare-at prices and
     creates new variants without one; a file that is not a workbook;
   - images and logos uploaded, first primary; kept without `--replace-images`,
