@@ -56,7 +56,11 @@ What is explicitly outside the scope?
   body product has 1–4 skin types, a `skin_feel` and its main INCI ingredients;
   makeup, fragrance and haircare have none. Each brand has `logo_urls` and each
   product `image_urls` (one tuple of candidate URLs per image, tried in order; 87
-  photos in all). `RETIRED_BRAND_SLUGS` and `RETIRED_PRODUCT_SLUGS` list the invented
+  photos in all). Six variants are on sale through `compare_at_price` (the `on_sale()`
+  helper): three at base price (Anua cleansing oil, COSRX snail essence, SKIN1004
+  ampoule 55 ml) and three at an override (Clean It Zero 180 ml, Beauty of Joseon
+  Glow Serum 60 ml, Anua toner 500 ml); `seed_demo` writes the field.
+  `RETIRED_BRAND_SLUGS` and `RETIRED_PRODUCT_SLUGS` list the invented
   catalogue an earlier version seeded.
 - `apps/catalog/management/commands/seed_demo.py` — creates brands, sizes, shades
   and skin types with `get_or_create`; upserts every seeded category (`parent`,
@@ -103,7 +107,8 @@ None.
 **Decision**
 
 One unpublished product, one sold out, one without images, several `price_override`
-sizes, and several variants at or below the low-stock threshold (5).
+sizes, several variants at or below the low-stock threshold (5), and six variants on
+sale, priced by override and by base price (`sale-prices.md`).
 
 **Reason**
 
@@ -194,7 +199,8 @@ DEBUG only, or `--deploy` with `SEED_DEMO_DATA` true.
 - `apps/catalog/tests/test_seed_demo.py` — DEBUG guard, brands with logos, the
   category tree in menu order, two published products per child category, skin types
   and care details on skincare and body products, shade counts, perfume sizes,
-  shadeless skincare, the awkward cases, idempotence, flush (including a retired
+  shadeless skincare, the awkward cases, the six sale variants (in the data and once
+  seeded), idempotence, flush (including a retired
   category and a re-parented one, keeping a category a merchant product uses, and
   re-parenting that surviving category), restoring an edited seeded category and
   product without `--flush`,

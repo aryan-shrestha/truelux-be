@@ -86,4 +86,5 @@ apps/catalog/selectors.py
 apps/catalog/serializers.py
 apps/catalog/filters.py
 apps/catalog/workbook/
+apps/backoffice/{serializers,selectors,filters}.py
 ```

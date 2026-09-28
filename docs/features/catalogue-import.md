@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-26
+Last updated: 2026-09-29
 
 ---
 
@@ -70,7 +70,9 @@ WebP, 5 MB), now in `apps/catalog/constants.py` and shared by both.
   sheets or to rows already in the database, one-level category depth, ambiguous
   category names, a variant naming an unknown product, an SKU that already belongs to
   another product, the (product, size, shade) uniqueness against the sheet and the
-  database, a price override of 0, a published product with no variants
+  database, a price override of 0, a compare-at price not above the variant's price
+  (its override, else the base price on the Products sheet, else the database's), a
+  published product with no variants
   (`ProductHasNoVariants.message`), and every image that will be uploaded: a plain
   file name, present in `--images` under exactly that name, ≤ 5 MB, JPEG/PNG/WebP by
   its content.
@@ -79,6 +81,8 @@ WebP, 5 MB), now in `apps/catalog/constants.py` and shared by both.
   `transaction.atomic()` through `create_taxonomy_entry`/`update_taxonomy_entry`,
   `create_product`/`update_product`, `create_variant`/`update_variant` and
   `set_variant_stock`, calling an update service only with the fields that changed.
+  An existing variant is handed the product written in the same run, so the
+  variant service checks a compare-at against the new base price.
   Products are created unpublished and published after their variants exist, so the
   service's own rule holds. `--dry-run` runs the same writes and rolls back, so its
   counts are real. After the commit, logos go through `update_taxonomy_entry` and
@@ -126,7 +130,7 @@ not in the workbook. A category under a different parent is a different category
 **Decision**
 
 A blank optional cell means its default: empty text, sort order 0, brand active,
-product unpublished, no price override. Blank image and logo cells leave the
+product unpublished, no price override, no compare-at price (which ends a sale). Blank image and logo cells leave the
 existing files alone.
 
 ### Decision: images only where there are none
@@ -155,6 +159,10 @@ service's `catalog.stock_set` audit line.
 - After a partly failed upload, a product that got some of its images is skipped
   on the next run; use `--replace-images` for it.
 - Deleting or replacing an image leaves the Cloudinary asset (`media-storage.md`).
+- The Variants sheet has seven columns since sale prices (`sale-prices.md`): the
+  last is **Compare-at price (NPR)**. A workbook made before that fails with
+  `the column "Compare-at price (NPR)" is missing from row 1`; add the header or
+  re-export the template.
 - The dropdowns cover rows 3–1000. The importer reads every row regardless.
 - Excel may store a number typed into a text column (an SKU like `10023`) as a float;
   the reader turns `10023.0` back into `10023`.
@@ -205,12 +213,15 @@ Whoever holds the database and Cloudinary credentials. There is no API.
     unchanged; stock on new and existing variants goes through `set_variant_stock`;
     rows missing from the workbook are reported and kept; `--dry-run` writes
     nothing; loose spellings and numbers as text; references to database rows;
-  - 31 validation cases, each asserting its sheet/row/column message and that nothing
+  - 33 validation cases (including a compare-at not above the base price or the
+    override), each asserting its sheet/row/column message and that nothing
     was written; all problems reported at once; images without `--images`; an SKU of
     another product; a missing sheet or column; a file that is not a workbook;
   - images and logos uploaded, first primary; kept without `--replace-images`,
     replaced with it; uploads happen outside any transaction, after the rows exist;
-    a failed upload is reported and the rest continue.
+    a failed upload is reported and the rest continue;
+  - compare-at prices: set and cleared by import, a sale starting in the run that
+    lowers the base price, and one checked against a product only in the database.
 - `tests/test_settings.py` — `ENV_FILE` chooses the file read; a missing one fails.
 
 ---

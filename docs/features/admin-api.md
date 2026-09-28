@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-27
+Last updated: 2026-09-29
 
 ---
 
@@ -205,21 +205,21 @@ return bare arrays.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `products/` | paginated. `search` (name, SKU), `brand` (id), `category` (id), `is_published`, `low_stock=true`, `ordering` (`name`, `base_price`, `created_at`, `-…`) |
+| GET | `products/` | paginated. `search` (name, SKU), `brand` (id), `category` (id), `is_published`, `low_stock=true`, `on_sale` (`true`/`false` only; anything else is 400), `ordering` (`name`, `base_price`, `created_at`, `-…`) |
 | POST | `products/` | creates a product. Variants and images are added afterwards |
 | GET | `products/{id}/` | full representation |
 | PATCH | `products/{id}/` | any writable field |
 | DELETE | `products/{id}/` | `204`. `409 conflict` if any variant was ordered. Unpublish instead |
 | POST | `products/{id}/variants/` | adds a variant |
-| PATCH | `variants/{id}/` | `sku`, `size_id`, `shade_id`, `price_override`, `stock_quantity` (through `set_variant_stock`) |
+| PATCH | `variants/{id}/` | `sku`, `size_id`, `shade_id`, `price_override`, `compare_at_price`, `stock_quantity` (through `set_variant_stock`) |
 | DELETE | `variants/{id}/` | `409` if ordered |
 | POST | `products/{id}/images/` | `multipart/form-data`: `image` (≤ 5 MB, jpeg/png/webp), `alt_text`, `is_primary` |
 | PATCH | `images/{id}/` | `alt_text`, `sort_order`, `is_primary` (promoting clears the old primary in one transaction) |
 | DELETE | `images/{id}/` | `204` |
 
 Product representation (list items omit `description`, `skin_types`, `skin_feel`,
-`key_ingredients`, `variants` and `images`, and add `variant_count`, `total_stock` and
-`primary_image_url`):
+`key_ingredients`, `variants` and `images`, and add `variant_count`, `total_stock`,
+`on_sale` and `primary_image_url`):
 
 ```json
 {
@@ -239,7 +239,8 @@ Product representation (list items omit `description`, `skin_types`, `skin_feel`
     { "id": "uuid", "sku": "LUM-SF-30-WB",
       "size": { "id": "uuid", "name": "30 ml" },
       "shade": { "id": "uuid", "name": "Warm Beige", "hex_code": "#D8A47F" },
-      "stock_quantity": 12, "price_override": null, "price": "3200.00" }
+      "stock_quantity": 12, "price_override": "2720.00", "price": "2720.00",
+      "compare_at_price": "3200.00", "on_sale": true, "discount_percent": 15 }
   ],
   "images": [
     { "id": "uuid", "url": "https://res.cloudinary.com/…", "alt_text": "…", "sort_order": 0, "is_primary": true }
@@ -253,7 +254,11 @@ Product write body: `name`, `slug` (optional; derived from `name` and made uniqu
 when omitted), `description`, `brand_id`, `category_id`, `base_price`,
 `is_published`, `sort_order`, `skin_type_ids` (list of UUIDs, optional),
 `skin_feel` (≤ 200 characters), `key_ingredients`. Variant write body: `sku`, `size_id`, `shade_id`
-(nullable), `stock_quantity` (≥ 0), `price_override` (nullable, > 0).
+(nullable), `stock_quantity` (≥ 0), `price_override` (nullable, > 0), `compare_at_price`
+(nullable, > 0, and greater than the variant's resolved price or
+`400 validation_error` with `details.compare_at_price`; see `sale-prices.md`).
+`on_sale` and `discount_percent` on a variant are read-only and follow the storefront's
+rules. A product's `on_sale` is true when any of its variants is on sale.
 
 Publishing a product with no variants is rejected with
 `422 product_has_no_variants`.
@@ -333,7 +338,9 @@ tokens get `403`.
 - `test_products.py` — CRUD round trip; slug derivation and uniqueness; unknown
   brand is 400; publishing without variants is 422 on create and update; deleting
   an ordered product or variant is 409; list shape, filters and a constant three
-  queries; `skin_type_ids` set, kept, replaced and cleared, unknown id 400; variant stock edits call `set_variant_stock` (mocked) and reject
+  queries; `compare_at_price` round trip, `on_sale`/`discount_percent` on variants,
+  the not-above-the-price 400 and the list's `on_sale` flag and filter
+  (`sale-prices.md`); `skin_type_ids` set, kept, replaced and cleared, unknown id 400; variant stock edits call `set_variant_stock` (mocked) and reject
   negatives; image upload, primary promotion, wrong type and >5 MB are 400; a
   non-multipart upload is 415.
 - `test_taxonomy.py` — brand list includes inactive brands with counts; logo upload
