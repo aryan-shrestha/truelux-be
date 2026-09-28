@@ -1,4 +1,5 @@
 from collections.abc import Iterable, Mapping
+from decimal import Decimal
 from pathlib import PurePosixPath
 
 from django.db.models import F
@@ -84,7 +85,8 @@ def catalogue_rows() -> Rows:
                 variant.size.name,
                 variant.shade.name if variant.shade else None,
                 variant.stock_quantity,
-                float(variant.price_override) if variant.price_override is not None else None,
+                _price(variant.price_override),
+                _price(variant.compare_at_price),
             )
             for variant in ProductVariant.objects.select_related(
                 "product__brand", "size", "shade"
@@ -131,6 +133,10 @@ def _product_row(product: Product) -> tuple[CellValue, ...]:
 
 def _basename(name: str | None) -> str:
     return PurePosixPath(name).name if name else ""
+
+
+def _price(value: Decimal | None) -> float | None:
+    return float(value) if value is not None else None
 
 
 def _yes_no(value: bool) -> str:

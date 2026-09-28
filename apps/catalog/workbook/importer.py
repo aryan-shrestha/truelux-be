@@ -281,6 +281,7 @@ class _Writer:
                 "size": sizes[row["Size"]],
                 "shade": shades[row["Shade"]] if row["Shade"] else None,
                 "price_override": row["Price override (NPR)"],
+                "compare_at_price": row["Compare-at price (NPR)"],
             }
             stock = row["Stock"]
             variant = self.catalogue.variants.get(row["SKU"])
@@ -294,6 +295,9 @@ class _Writer:
                     set_variant_stock(variant=variant, quantity=stock)
                 tally.created += 1
                 continue
+            # The catalogue loaded this variant's product separately; the written one
+            # carries this run's base price, which the compare-at check reads.
+            variant.product = self.products.get(variant.product_id, variant.product)
             changed = _changes(variant, fields)
             stock_changed = variant.stock_quantity != stock
             if changed or stock_changed:

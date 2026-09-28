@@ -288,8 +288,15 @@ VARIANTS = Sheet(
             18,
             kind=Kind.PRICE,
         ),
+        Column(
+            "Compare-at price (NPR)",
+            "Optional. The old price, shown struck through to put this variant on sale. "
+            "Must be more than the price the customer pays. Blank means not on sale.",
+            20,
+            kind=Kind.PRICE,
+        ),
     ),
-    ("Hydrating Rose Serum", "GL-ROSE-30", "30 ml", None, 24, None),
+    ("Hydrating Rose Serum", "GL-ROSE-30", "30 ml", None, 24, None, None),
 )
 
 DATA_SHEETS = (BRANDS, CATEGORIES, SHADES, SIZES, SKIN_TYPES, PRODUCTS, VARIANTS)
@@ -340,6 +347,11 @@ READ_ME: tuple[tuple[str, str], ...] = (
     (
         "text",
         '• Prices are in NPR, as plain numbers: 2450 or 2450.50, without commas or "Rs".',
+    ),
+    (
+        "text",
+        "• To put a variant on sale, lower its price and enter the old price as its "
+        "Compare-at price. Clear the Compare-at price when the sale ends.",
     ),
     ("text", "• Hex colours are # followed by six characters, like #D8A47F."),
     (
