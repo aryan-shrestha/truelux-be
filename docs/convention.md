@@ -681,7 +681,7 @@ nowhere else, so one file lists the entire configuration surface. Under
 is required, has no default, and fails loudly at startup. Never call `os.environ`
 from application code.
 
-There are **two exceptions**.
+There are **three exceptions**.
 
 `RENDER_EXTERNAL_HOSTNAME`, in `config/settings/production.py`, which Render
 injects and which is absent everywhere else. It cannot go through
@@ -698,6 +698,14 @@ pytest-django passes `test`. `render.yaml` sets it to `production` because the
 build runs `manage.py`, whose `local` fallback would collect static files without
 a manifest. It is listed in `.env.example` only so the blueprint guard accepts it —
 the value in `.env` is never honoured, because `read_env` runs inside `base.py`.
+
+`ENV_FILE`, read with `os.environ.get` at the top of `base.py`, names the file
+`read_env` loads instead of `.env`. It exists so one command can run with another
+deployment's variables, as the production catalogue import does with
+`.env.production` ([ADR 0016](decisions/0016-the-real-catalogue-is-imported-from-a-workbook.md)).
+It is optional, so it cannot go through `EnvironmentReader`, and it is not in
+`.env.example`. When it is set, the file must exist, or the settings refuse to import:
+otherwise variables would silently come from the shell or be missing.
 
 **Migrations.** One per logical change, with a descriptive name
 (`0004_add_order_status_index`, not `0004_auto_20260920_1214`). Never edit an applied

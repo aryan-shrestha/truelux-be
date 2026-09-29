@@ -21,13 +21,9 @@ def _reject_non_positive_quantities(quantities: Mapping[UUID, int]) -> None:
         raise ValueError(f"Quantities must be positive integers; got non-positive for {invalid}.")
 
 
-def _locked_variants(quantities: Mapping[UUID, int]) -> dict[UUID, ProductVariant]:
+def _variants(quantities: Mapping[UUID, int], *, lock: bool) -> dict[UUID, ProductVariant]:
     variants = (
         ProductVariant.objects
-        # `of` restricts the lock to product_variant. Plain select_for_update()
-        # alongside select_related() would also lock the joined product rows,
-        # which this operation never writes and which other checkouts need.
-        .select_for_update(of=("self",))
         # Not speculative: `.price` falls through to product.base_price, availability
         # reads the product and its brand, and place_order snapshots the size and
         # shade names. Without the joins those are queries per variant while this
@@ -40,14 +36,56 @@ def _locked_variants(quantities: Mapping[UUID, int]) -> dict[UUID, ProductVarian
         # reproduce.
         .order_by("pk")
     )
+    if lock:
+        # `of` restricts the lock to product_variant. Plain select_for_update()
+        # alongside select_related() would also lock the joined product rows,
+        # which this operation never writes and which other checkouts need.
+        variants = variants.select_for_update(of=("self",))
 
-    locked = {variant.pk: variant for variant in variants}
+    found = {variant.pk: variant for variant in variants}
 
-    missing = sorted(str(variant_id) for variant_id in quantities if variant_id not in locked)
+    missing = sorted(str(variant_id) for variant_id in quantities if variant_id not in found)
     if missing:
         raise VariantUnavailable(details={"variant_ids": missing})
 
-    return locked
+    return found
+
+
+def _reject_unavailable(
+    quantities: Mapping[UUID, int], variants: Mapping[UUID, ProductVariant]
+) -> None:
+    hidden = sorted(
+        str(variant_id)
+        for variant_id, variant in variants.items()
+        if not (variant.product.is_published and variant.product.brand.is_active)
+    )
+    if hidden:
+        raise VariantUnavailable(details={"variant_ids": hidden})
+
+    for variant_id, quantity in quantities.items():
+        if variants[variant_id].stock_quantity < quantity:
+            # `available` is deliberately absent. Checkout is AllowAny, so
+            # returning the remaining count would let one POST per variant
+            # enumerate the whole inventory -- the disclosure
+            # catalog-browsing.md refuses to make through the browsing API.
+            raise InsufficientStock(
+                details={
+                    "variant_id": str(variant_id),
+                    "requested": quantity,
+                }
+            )
+
+
+def check_variant_availability(*, quantities: Mapping[UUID, int]) -> dict[UUID, ProductVariant]:
+    """Raises what decrement_variant_stock would, without locking or writing.
+
+    The answer can be stale by the time the customer checks out; only the locked
+    decrement decides. Returns the variants so the caller can read prices.
+    """
+    _reject_non_positive_quantities(quantities)
+    variants = _variants(quantities, lock=False)
+    _reject_unavailable(quantities, variants)
+    return variants
 
 
 def decrement_variant_stock(*, quantities: Mapping[UUID, int]) -> dict[UUID, ProductVariant]:
@@ -60,29 +98,8 @@ def decrement_variant_stock(*, quantities: Mapping[UUID, int]) -> dict[UUID, Pro
     _reject_non_positive_quantities(quantities)
 
     with transaction.atomic():
-        locked = _locked_variants(quantities)
-
-        hidden = sorted(
-            str(variant_id)
-            for variant_id, variant in locked.items()
-            if not (variant.product.is_published and variant.product.brand.is_active)
-        )
-        if hidden:
-            raise VariantUnavailable(details={"variant_ids": hidden})
-
-        for variant_id, quantity in quantities.items():
-            variant = locked[variant_id]
-            if variant.stock_quantity < quantity:
-                # `available` is deliberately absent. Checkout is AllowAny, so
-                # returning the remaining count would let one POST per variant
-                # enumerate the whole inventory -- the disclosure
-                # catalog-browsing.md refuses to make through the browsing API.
-                raise InsufficientStock(
-                    details={
-                        "variant_id": str(variant_id),
-                        "requested": quantity,
-                    }
-                )
+        locked = _variants(quantities, lock=True)
+        _reject_unavailable(quantities, locked)
 
         for variant_id, quantity in quantities.items():
             variant = locked[variant_id]
@@ -102,7 +119,7 @@ def restore_variant_stock(*, quantities: Mapping[UUID, int]) -> dict[UUID, Produ
     _reject_non_positive_quantities(quantities)
 
     with transaction.atomic():
-        locked = _locked_variants(quantities)
+        locked = _variants(quantities, lock=True)
 
         for variant_id, quantity in quantities.items():
             variant = locked[variant_id]

@@ -28,3 +28,7 @@ ALLOWED_TRANSITIONS: dict[str, tuple[str, ...]] = {
 
 class PaymentMethod(models.TextChoices):
     COD = "cod", "Cash on delivery"
+
+
+# ShippingSettings is a singleton; a CheckConstraint pins its only row to this key.
+SHIPPING_SETTINGS_ID = 1

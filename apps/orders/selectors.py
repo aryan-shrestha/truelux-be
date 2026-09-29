@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from apps.orders.models import Order
+from apps.orders.constants import SHIPPING_SETTINGS_ID
+from apps.orders.models import Order, ShippingSettings
 
 
 def get_order_by_access_token(*, access_token: UUID) -> Order:
@@ -14,3 +15,7 @@ def get_order_by_number_and_email(*, order_number: str, email: str) -> Order:
     return Order.objects.prefetch_related("items").get(
         order_number=order_number, email__iexact=email
     )
+
+
+def get_shipping_settings() -> ShippingSettings:
+    return ShippingSettings.objects.get(pk=SHIPPING_SETTINGS_ID)

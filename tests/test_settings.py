@@ -103,11 +103,14 @@ def test_a_variable_that_may_be_empty_is_accepted_empty(clean_env, name):
         ("DJANGO_DEBUG", "Tru"),
         ("SEED_DEMO_DATA", "maybe"),
         ("EMAIL_PORT", "five-eight-seven"),
-        ("SHIPPING_FEE_INSIDE_VALLEY", "one hundred"),
         ("STOREFRONT_URL", "shop.example.com"),
         ("DATABASE_URL", "not-a-database-url"),
+        ("DATABASE_SCHEMA", "truelux,public"),
+        ("DATABASE_SCHEMA", "truelux -c statement_timeout=0"),
+        ("DATABASE_SCHEMA", "Truelux"),
         ("DJANGO_THROTTLE_CATALOG", "600/fortnight"),
         ("DJANGO_THROTTLE_CATALOG", "lots/hour"),
+        ("DJANGO_THROTTLE_QUOTE", "600/m"),
     ],
 )
 def test_a_malformed_value_fails_at_import(clean_env, name, value):
@@ -287,6 +290,15 @@ def test_pooler_constraints_are_applied(clean_env, alias):
     assert database["ATOMIC_REQUESTS"] is False
 
 
+@pytest.mark.parametrize("alias", ["default", "direct"])
+def test_database_schema_is_the_connection_search_path(clean_env, alias):
+    clean_env.setenv("DATABASE_SCHEMA", "truelux")
+
+    settings = _reload("config.settings.base")
+
+    assert settings.DATABASES[alias]["OPTIONS"]["options"] == "-c search_path=truelux"
+
+
 def test_the_cache_is_the_database_table_the_build_creates(clean_env):
     settings = _reload("config.settings.base")
 
@@ -355,3 +367,22 @@ def teardown_module():
     # Restore the modules the reloads above mutated so later tests see test settings.
     for name in ("config.settings.base", "config.settings.test"):
         _reload(name)
+
+
+def test_env_file_chooses_the_file_the_settings_read(clean_env, tmp_path):
+    env_file = tmp_path / ".env.production"
+    env_file.write_text("")
+    read = []
+    clean_env.setattr(environ.Env, "read_env", staticmethod(lambda path, **kw: read.append(path)))
+    clean_env.setenv("ENV_FILE", str(env_file))
+
+    _reload("config.settings.base")
+
+    assert read == [env_file]
+
+
+def test_a_missing_env_file_fails_at_import(clean_env, tmp_path):
+    clean_env.setenv("ENV_FILE", str(tmp_path / ".env.production"))
+
+    with pytest.raises(ImproperlyConfigured, match="ENV_FILE"):
+        _reload("config.settings.base")

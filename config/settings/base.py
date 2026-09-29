@@ -1,14 +1,26 @@
+import os
 from datetime import timedelta
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 from config.settings.strict_env import EnvironmentReader
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# ENV_FILE points one command at another deployment's variables instead of .env, e.g.
+# importing the catalogue into production from the owner's machine
+# (docs/features/catalogue-import.md). Like DJANGO_SETTINGS_MODULE it chooses where
+# the settings come from, so it is read before them; convention.md lists the exception.
+_env_file = Path(os.environ.get("ENV_FILE") or BASE_DIR / ".env")
+if "ENV_FILE" in os.environ and not _env_file.is_file():
+    # read_env only warns about a missing file, and the variables it would have set
+    # could then come from the shell instead: the wrong database, with no error.
+    raise ImproperlyConfigured(f"ENV_FILE names {_env_file}, which does not exist.")
+
 env = environ.Env()
-environ.Env.read_env(BASE_DIR / ".env")
+environ.Env.read_env(_env_file)
 
 # Every variable below is required, in every environment, and nothing has a default.
 # `read` collects each problem rather than raising on the first, and
@@ -94,6 +106,12 @@ DATABASES = {
     },
 }
 
+# Every table, sequence and the cache table live in this one schema, which must
+# exist before `migrate` (deployment.md). It is a startup parameter rather than a
+# `SET` on connect because the transaction pooler hands each transaction whichever
+# server connection is free, and a session `SET` would not follow it.
+DATABASE_SCHEMA = read.identifier("DATABASE_SCHEMA")
+
 # Supabase's transaction pooler multiplexes one server connection across clients,
 # which makes server-side cursors and psycopg's prepared statements unusable, and
 # makes a Django-side connection pool actively harmful: Supavisor already pools, so
@@ -103,6 +121,7 @@ for _alias in DATABASES:
     DATABASES[_alias]["ATOMIC_REQUESTS"] = False
     DATABASES[_alias].setdefault("OPTIONS", {})
     DATABASES[_alias]["OPTIONS"]["prepare_threshold"] = None
+    DATABASES[_alias]["OPTIONS"]["options"] = f"-c search_path={DATABASE_SCHEMA}"
     DATABASES[_alias]["OPTIONS"].setdefault("sslmode", "require")
     DATABASES[_alias]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
@@ -122,6 +141,7 @@ CLOUDINARY_STORAGE = {
     "CLOUD_NAME": read.text("CLOUDINARY_CLOUD_NAME"),
     "API_KEY": read.text("CLOUDINARY_API_KEY"),
     "API_SECRET": read.text("CLOUDINARY_API_SECRET"),
+    "PREFIX": "truelux",
 }
 
 STORAGES = {
@@ -185,6 +205,10 @@ REST_FRAMEWORK = {
         # Checkout writes and holds row locks for the length of its transaction,
         # which makes it more expensive to abuse than any read endpoint here.
         "checkout": read.throttle_rate("DJANGO_THROTTLE_CHECKOUT"),
+        # The bag page quotes on every quantity change, so the quote needs a ceiling
+        # near browsing's. Sharing checkout's counter would let quoting exhaust the
+        # customer's allowance to actually place the order.
+        "quote": read.throttle_rate("DJANGO_THROTTLE_QUOTE"),
         # The token endpoints are a password-guessing surface.
         "auth": read.throttle_rate("DJANGO_THROTTLE_AUTH"),
         "admin": read.throttle_rate("DJANGO_THROTTLE_ADMIN"),
@@ -239,9 +263,8 @@ EMAIL_TIMEOUT = read.integer("EMAIL_TIMEOUT")
 # ADR 0003 and http would mail it in clear text.
 STOREFRONT_URL = read.url("STOREFRONT_URL", require_https=True)
 
-# A district matching neither band pays the outside rate; see checkout.md.
-SHIPPING_FEE_INSIDE_VALLEY = read.decimal("SHIPPING_FEE_INSIDE_VALLEY")
-SHIPPING_FEE_OUTSIDE_VALLEY = read.decimal("SHIPPING_FEE_OUTSIDE_VALLEY")
+# Geography, not pricing, so it stays in code while the fees are merchant data in
+# ShippingSettings (ADR 0017). Any other district pays the outside-valley fee.
 KATHMANDU_VALLEY_DISTRICTS = ("kathmandu", "lalitpur", "bhaktapur")
 
 LOG_LEVEL = read.text("DJANGO_LOG_LEVEL")

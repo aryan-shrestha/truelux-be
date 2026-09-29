@@ -4,7 +4,7 @@ from typing import Any
 from django.core.files import File
 from django.db import transaction
 
-from apps.catalog.exceptions import ProductHasNoVariants
+from apps.catalog.exceptions import CompareAtNotAbovePrice, ProductHasNoVariants
 from apps.catalog.models import Product, ProductImage, ProductVariant, SkinType
 from apps.catalog.services._writes import assign_fields, fill_missing_slug
 from apps.catalog.services.stock import set_variant_stock
@@ -25,7 +25,7 @@ PRODUCT_FIELDS = frozenset(
         "key_ingredients",
     }
 )
-VARIANT_FIELDS = frozenset({"sku", "size", "shade", "price_override"})
+VARIANT_FIELDS = frozenset({"sku", "size", "shade", "price_override", "compare_at_price"})
 IMAGE_FIELDS = frozenset({"alt_text", "sort_order"})
 
 
@@ -86,11 +86,18 @@ def delete_product(*, product: Product) -> None:
     logger.info("catalog.product_deleted", product_id=product_id)
 
 
+def _ensure_compare_at_above_price(variant: ProductVariant) -> None:
+    if variant.compare_at_price is not None and variant.compare_at_price <= variant.price:
+        raise CompareAtNotAbovePrice()
+
+
 def create_variant(
     *, product: Product, fields: Mapping[str, Any], stock_quantity: int = 0
 ) -> ProductVariant:
+    """Raises CompareAtNotAbovePrice for a compare-at at or below the resolved price."""
     variant = ProductVariant(product=product, stock_quantity=stock_quantity)
     assign_fields(variant, fields, VARIANT_FIELDS)
+    _ensure_compare_at_above_price(variant)
     variant.save()
 
     logger.info("catalog.variant_created", variant_id=str(variant.pk), sku=variant.sku)
@@ -100,9 +107,15 @@ def create_variant(
 def update_variant(
     *, variant: ProductVariant, fields: Mapping[str, Any], stock_quantity: int | None = None
 ) -> ProductVariant:
-    """Stock goes through set_variant_stock, so it takes the row lock."""
+    """Stock goes through set_variant_stock, so it takes the row lock.
+
+    A compare-at is checked against the price only when it is written: repricing
+    past an existing compare-at is allowed and simply ends the sale (ADR 0018).
+    """
     if fields:
         assign_fields(variant, fields, VARIANT_FIELDS)
+        if "compare_at_price" in fields:
+            _ensure_compare_at_above_price(variant)
         variant.save(update_fields=[*fields, "updated_at"])
     if stock_quantity is not None:
         variant = set_variant_stock(variant=variant, quantity=stock_quantity)

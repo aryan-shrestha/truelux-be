@@ -345,6 +345,19 @@ def test_an_image_of_the_wrong_type_is_a_400(staff_client):
     assert "image" in response.data["error"]["details"]
 
 
+def test_an_image_upload_that_is_not_multipart_is_a_415(staff_client):
+    product = ProductFactory()
+
+    response = staff_client.post(
+        reverse("v1:admin-product-images", args=[product.pk]),
+        "image=%89PNG&alt_text=Front",
+        content_type="application/x-www-form-urlencoded",
+    )
+
+    assert response.status_code == 415
+    assert response.data["error"]["code"] == "unsupported_media_type"
+
+
 def test_an_image_over_5_mb_is_a_400(staff_client):
     product = ProductFactory()
     upload = image_upload()
@@ -369,3 +382,95 @@ def test_deleting_an_image(staff_client):
 
     assert response.status_code == 204
     assert not ProductImage.objects.exists()
+
+
+def test_compare_at_price_round_trips_and_clears(staff_client):
+    variant = ProductVariantFactory(product=ProductFactory(base_price=Decimal("2720.00")))
+    url = reverse("v1:admin-variant-detail", args=[variant.pk])
+
+    set_response = staff_client.patch(url, {"compare_at_price": "3200.00"}, format="json")
+    detail = staff_client.get(reverse("v1:admin-product-detail", args=[variant.product_id]))
+    cleared = staff_client.patch(url, {"compare_at_price": None}, format="json")
+
+    assert set_response.status_code == 200
+    assert set_response.data["compare_at_price"] == "3200.00"
+    assert set_response.data["on_sale"] is True
+    assert set_response.data["discount_percent"] == 15
+    variant_in_detail = detail.data["variants"][0]
+    assert variant_in_detail["compare_at_price"] == "3200.00"
+    assert variant_in_detail["on_sale"] is True
+    assert variant_in_detail["discount_percent"] == 15
+    assert cleared.data["compare_at_price"] is None
+    assert cleared.data["on_sale"] is False
+    assert cleared.data["discount_percent"] is None
+
+
+def test_adding_a_variant_on_sale(staff_client):
+    product = ProductFactory(base_price=Decimal("3200.00"))
+
+    response = staff_client.post(
+        reverse("v1:admin-product-variants", args=[product.pk]),
+        {
+            "sku": "SALE-1",
+            "size_id": str(SizeFactory().pk),
+            "price_override": "2720.00",
+            "compare_at_price": "3200.00",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["compare_at_price"] == "3200.00"
+    assert response.data["on_sale"] is True
+    assert response.data["discount_percent"] == 15
+
+
+@pytest.mark.parametrize("compare_at", ["2720.00", "2000.00", "0"])
+def test_a_compare_at_not_above_the_price_is_a_400(staff_client, compare_at):
+    variant = ProductVariantFactory(product=ProductFactory(base_price=Decimal("2720.00")))
+
+    response = staff_client.patch(
+        reverse("v1:admin-variant-detail", args=[variant.pk]),
+        {"compare_at_price": compare_at},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["error"]["code"] == "validation_error"
+    assert "compare_at_price" in response.data["error"]["details"]
+    variant.refresh_from_db()
+    assert variant.compare_at_price is None
+
+
+def test_product_list_flags_and_filters_products_on_sale(staff_client):
+    on_sale = ProductFactory(name="Sale", base_price=Decimal("2720.00"))
+    ProductVariantFactory(product=on_sale, compare_at_price=Decimal("3200.00"))
+    full_price = ProductFactory(name="Full", base_price=Decimal("3200.00"))
+    ProductVariantFactory(product=full_price, compare_at_price=Decimal("3200.00"))
+    url = reverse("v1:admin-product-list")
+
+    listed = {p["name"]: p["on_sale"] for p in staff_client.get(url).data["results"]}
+    filtered = staff_client.get(url, {"on_sale": "true"})
+    invalid = staff_client.get(url, {"on_sale": "yes"})
+
+    assert listed == {"Sale": True, "Full": False}
+    assert [p["name"] for p in filtered.data["results"]] == ["Sale"]
+    assert invalid.status_code == 400
+
+
+def test_a_repriced_variant_keeps_its_compare_at_but_is_not_on_sale(staff_client):
+    variant = ProductVariantFactory(
+        product=ProductFactory(base_price=Decimal("2720.00")),
+        compare_at_price=Decimal("3200.00"),
+    )
+
+    response = staff_client.patch(
+        reverse("v1:admin-variant-detail", args=[variant.pk]),
+        {"price_override": "3200.00"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["compare_at_price"] == "3200.00"
+    assert response.data["on_sale"] is False
+    assert response.data["discount_percent"] is None

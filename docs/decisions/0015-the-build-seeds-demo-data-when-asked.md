@@ -79,8 +79,9 @@ the staff password on every deploy, undoing any change staff made.
 
 ### Negative
 
-- The first build with `SEED_DEMO_DATA=true` uploads about 60 generated images to
-  Cloudinary, which makes that build slower.
+- The first build with `SEED_DEMO_DATA=true` downloads about 110 product photos and
+  brand logos and uploads them to Cloudinary, which makes that build slower. (Before
+  2026-09-29 the images were generated placeholders; see `features/demo-seed.md`.)
 - A demo shop runs with a known staff email; the password is whatever the operator
   put in `DEMO_STAFF_PASSWORD`.
 

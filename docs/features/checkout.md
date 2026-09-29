@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-27
 
 ---
 
@@ -20,7 +20,8 @@ What is included in this implementation?
 
 - `POST /api/v1/checkout/`: validate a submitted cart and place an order
 - Server-side re-resolution of every price and every stock level
-- Shipping fee calculation by district band
+- Shipping fee calculation by district band, through `price_cart`
+  (`checkout-quote-and-shipping.md`)
 - The transaction boundary, the lock protocol and the lock ordering
 - Snapshotting name, size, shade, SKU and price onto order lines
 - Recording the cash-on-delivery payment
@@ -55,10 +56,10 @@ is no authenticated user; contact details come from the body.
   `CheckoutResponseSerializer` (`order_number`, `status`, `subtotal`,
   `shipping_fee`, `total`).
 - `apps/orders/services.py::place_order` — collapses duplicate lines, calls
-  `apps.catalog.services.decrement_variant_stock` once for the whole cart, reads
-  each price off the returned locked rows, computes the shipping fee and total,
-  creates the order and its lines, and registers the confirmation email with
-  `transaction.on_commit`.
+  `apps.catalog.services.decrement_variant_stock` once for the whole cart, prices
+  the returned locked rows with `price_cart` (the same function the quote uses, so
+  a quote and the order it becomes agree), creates the order and its lines, and
+  registers the confirmation email with `transaction.on_commit`.
 - `apps/catalog/services/stock.py::decrement_variant_stock` — locks with
   `select_for_update(of=("self",))`, `select_related("product__brand", "size",
   "shade")`, ordered by `pk`; raises `VariantUnavailable` for unknown variants and
@@ -66,8 +67,11 @@ is no authenticated user; contact details come from the body.
   `InsufficientStock` without revealing the remaining count.
 - `apps/orders/views.py::CheckoutView` — `AllowAny`, `checkout` throttle scope,
   calls `place_order` then `record_cod_payment`, returns `201`.
-- Settings: `SHIPPING_FEE_INSIDE_VALLEY` (150.00), `SHIPPING_FEE_OUTSIDE_VALLEY`
-  (250.00), `KATHMANDU_VALLEY_DISTRICTS`, `DJANGO_THROTTLE_CHECKOUT` (`30/hour`).
+- The fees and the free-shipping threshold are the `ShippingSettings` row (default
+  150.00 / 250.00, no threshold), edited by staff, not settings
+  ([ADR 0017](../decisions/0017-shipping-fees-are-merchant-data.md)). Settings:
+  `KATHMANDU_VALLEY_DISTRICTS`, `DJANGO_THROTTLE_CHECKOUT` (`30/hour`; the quote
+  has its own `quote` scope).
 
 ---
 
@@ -96,7 +100,8 @@ A price in the request body is a price the customer can edit.
 **Decision**
 
 Kathmandu, Lalitpur and Bhaktapur pay the inside-valley fee; every other string pays
-the outside-valley fee. The fee is stored on the order.
+the outside-valley fee, unless the subtotal reaches the free-shipping threshold, in
+which case the fee is 0. The fee is stored on the order.
 
 **Reason**
 
@@ -174,6 +179,7 @@ None beyond `orders.md` and `payments.md`.
 
 ## Tests
 
+`apps/orders/tests/test_quote.py` proves a checkout's totals equal the quote's.
 `apps/orders/tests/test_checkout.py`: order creation and stock decrement; client
 prices ignored; name, size, shade and price snapshots, and `""` for a shadeless
 variant; `price_override`; shortfalls, unpublished, inactive-brand and unknown
@@ -187,7 +193,7 @@ per cart line; two concurrent buyers of the last unit place one order.
 ## Files
 
 ```text
-apps/orders/{serializers,services,views,urls}.py
+apps/orders/{serializers,services,views,urls}.py   place_order, price_cart
 apps/catalog/services/stock.py
 apps/payments/services.py
 apps/orders/tests/test_checkout.py

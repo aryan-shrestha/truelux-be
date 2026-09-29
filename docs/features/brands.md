@@ -81,8 +81,8 @@ model rather than a product attribute. The filter follows the existing
 - `apps/catalog/services/stock.py` — `decrement_variant_stock` treats a variant whose brand
   is inactive exactly like an unpublished one: `422 variant_unavailable` at checkout.
 - `apps/catalog/admin.py` — `BrandAdmin`; `ProductAdmin` lists and filters by brand.
-- `apps/catalog/management/commands/seed_demo.py` — eight seeded brands, each with a
-  generated PNG logo.
+- `apps/catalog/management/commands/seed_demo.py` — 24 real Korean brands, each with
+  its logo downloaded from the brand's site (see `demo-seed.md`).
 - Writes through the admin API: see `admin-api.md`.
 
 ---

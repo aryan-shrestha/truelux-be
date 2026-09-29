@@ -4,7 +4,7 @@ from django.db import models
 
 from apps.catalog.models import ProductVariant
 from apps.core.models import TimeStampedModel, UUIDModel
-from apps.orders.constants import OrderStatus, PaymentMethod
+from apps.orders.constants import SHIPPING_SETTINGS_ID, OrderStatus, PaymentMethod
 
 
 class Order(UUIDModel, TimeStampedModel):
@@ -85,3 +85,37 @@ class OrderItem(UUIDModel, TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.quantity} x {self.sku}"
+
+
+class ShippingSettings(TimeStampedModel):
+    """The merchant's shipping prices (ADR 0017). Exactly one row, created by a data
+    migration and read through `get_shipping_settings()`."""
+
+    id = models.SmallIntegerField(primary_key=True, default=SHIPPING_SETTINGS_ID, editable=False)
+    inside_valley_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    outside_valley_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    # Null is "no free shipping", which is not the same as a threshold of 0.
+    free_shipping_threshold = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = "shipping_settings"
+        verbose_name_plural = "shipping settings"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=SHIPPING_SETTINGS_ID), name="shipping_settings_singleton"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(inside_valley_fee__gte=0, outside_valley_fee__gte=0),
+                name="shipping_settings_fees_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(free_shipping_threshold__isnull=True)
+                | models.Q(free_shipping_threshold__gt=0),
+                name="shipping_settings_threshold_positive",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return "Shipping settings"

@@ -1,14 +1,20 @@
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from django.conf import settings
 from django.db import connection, transaction
 from django.utils import timezone
 
-from apps.catalog.services import decrement_variant_stock, restore_variant_stock
+from apps.catalog.models import ProductVariant
+from apps.catalog.services import (
+    check_variant_availability,
+    decrement_variant_stock,
+    restore_variant_stock,
+)
 from apps.core.logging import get_logger
 from apps.orders.constants import (
     ORDER_NUMBER_DIGITS,
@@ -23,7 +29,8 @@ from apps.orders.exceptions import (
     OrderAlreadyShipped,
     OrderNotCancellable,
 )
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import Order, OrderItem, ShippingSettings
+from apps.orders.selectors import get_shipping_settings
 
 logger = get_logger(__name__)
 
@@ -158,13 +165,109 @@ def transition_order(*, order: Order, to: str) -> Order:
     return _TRANSITION_SERVICES[to](order=order)
 
 
-def _shipping_fee_for(district: str) -> Decimal:
+@dataclass(frozen=True)
+class PricedLine:
+    variant_id: UUID
+    quantity: int
+    unit_price: Decimal
+    line_total: Decimal
+
+
+@dataclass(frozen=True)
+class CartPrice:
+    subtotal: Decimal
+    # None only while the district is unknown and the cart has not reached the
+    # free-shipping threshold: the fee then depends on where it is going.
+    shipping_fee: Decimal | None
+    discount: Decimal
+    total: Decimal | None
+    free_shipping_remaining: Decimal | None
+    lines: tuple[PricedLine, ...]
+
+
+def _district_fee(shipping: ShippingSettings, district: str) -> Decimal:
     if district.strip().lower() in settings.KATHMANDU_VALLEY_DISTRICTS:
-        return Decimal(settings.SHIPPING_FEE_INSIDE_VALLEY)
+        return shipping.inside_valley_fee
     # An unrecognised district pays the outside-valley rate. A misspelled valley
     # district therefore overcharges, which checkout.md prefers to undercharging
     # every district the merchant has not thought of.
-    return Decimal(settings.SHIPPING_FEE_OUTSIDE_VALLEY)
+    return shipping.outside_valley_fee
+
+
+def price_cart(
+    *,
+    variants_by_id: Mapping[UUID, ProductVariant],
+    quantities: Mapping[UUID, int],
+    district: str | None,
+) -> CartPrice:
+    """The one place money is computed (ADR 0017), shared by the quote and
+    place_order so the two cannot disagree. Writes nothing."""
+    shipping = get_shipping_settings()
+
+    lines = tuple(
+        PricedLine(
+            variant_id=variant_id,
+            quantity=quantity,
+            unit_price=variants_by_id[variant_id].price,
+            line_total=variants_by_id[variant_id].price * quantity,
+        )
+        for variant_id, quantity in quantities.items()
+    )
+    subtotal = sum((line.line_total for line in lines), Decimal("0.00"))
+    discount = Decimal("0.00")
+
+    threshold = shipping.free_shipping_threshold
+    shipping_fee: Decimal | None
+    if threshold is not None and subtotal >= threshold:
+        shipping_fee = Decimal("0.00")
+    elif district is None:
+        shipping_fee = None
+    else:
+        shipping_fee = _district_fee(shipping, district)
+
+    return CartPrice(
+        subtotal=subtotal,
+        shipping_fee=shipping_fee,
+        discount=discount,
+        total=None if shipping_fee is None else subtotal - discount + shipping_fee,
+        free_shipping_remaining=(
+            threshold - subtotal if threshold is not None and threshold > subtotal else None
+        ),
+        lines=lines,
+    )
+
+
+def _summed_quantities(items: Sequence[Mapping[str, Any]]) -> dict[UUID, int]:
+    quantities: dict[UUID, int] = defaultdict(int)
+    for item in items:
+        # Two lines for one variant are one order of that many units. Assigning
+        # instead of summing would decrement only the last line's quantity while
+        # charging for both.
+        quantities[item["variant_id"]] += item["quantity"]
+    return dict(quantities)
+
+
+def update_shipping_settings(*, fields: Mapping[str, Any]) -> ShippingSettings:
+    """Changes what the next quote and checkout charge. Placed orders keep the fee
+    they were charged, because Order stores its own."""
+    shipping = get_shipping_settings()
+    for name, value in fields.items():
+        setattr(shipping, name, value)
+    shipping.save(update_fields=[*fields, "updated_at"])
+
+    logger.info("shipping.settings_updated", fields=sorted(fields))
+    return shipping
+
+
+def quote_cart(*, items: Sequence[Mapping[str, Any]], district: str | None) -> CartPrice:
+    """Raises EmptyCart, VariantUnavailable and InsufficientStock exactly as
+    place_order would, but takes no lock and writes nothing."""
+    if not items:
+        raise EmptyCart()
+
+    quantities = _summed_quantities(items)
+    variants = check_variant_availability(quantities=quantities)
+    return price_cart(variants_by_id=variants, quantities=quantities, district=district)
 
 
 def place_order(
@@ -188,38 +291,29 @@ def place_order(
     if not items:
         raise EmptyCart()
 
-    quantities: dict[UUID, int] = defaultdict(int)
-    for item in items:
-        # Two lines for one variant are one order of that many units. Assigning
-        # instead of summing would decrement only the last line's quantity while
-        # charging for both.
-        quantities[item["variant_id"]] += item["quantity"]
+    quantities = _summed_quantities(items)
 
     with transaction.atomic():
         # One call, whole cart. This is what owns the lock, the ascending-pk
         # ordering ADR 0004 requires, and the two availability errors. It returns
         # the locked rows, so nothing below refetches what it already holds.
-        variants = decrement_variant_stock(quantities=dict(quantities))
+        variants = decrement_variant_stock(quantities=quantities)
+        price = price_cart(variants_by_id=variants, quantities=quantities, district=district)
 
-        lines = []
-        subtotal = Decimal("0.00")
-        for variant_id, quantity in quantities.items():
-            variant = variants[variant_id]
-            unit_price = variant.price
-            subtotal += unit_price * quantity
-            lines.append(
+        order_items = []
+        for line in price.lines:
+            variant = variants[line.variant_id]
+            order_items.append(
                 OrderItem(
                     variant=variant,
-                    quantity=quantity,
-                    unit_price=unit_price,
+                    quantity=line.quantity,
+                    unit_price=line.unit_price,
                     product_name=variant.product.name,
                     variant_size=variant.size.name,
                     variant_shade=variant.shade.name if variant.shade else "",
                     sku=variant.sku,
                 )
             )
-
-        shipping_fee = _shipping_fee_for(district)
 
         order = Order.objects.create(
             order_number=generate_order_number(),
@@ -230,15 +324,17 @@ def place_order(
             city=city,
             district=district,
             note=note,
-            subtotal=subtotal,
-            shipping_fee=shipping_fee,
-            total=subtotal + shipping_fee,
+            subtotal=price.subtotal,
+            # price_cart leaves these None only without a district, and checkout
+            # always has one.
+            shipping_fee=cast(Decimal, price.shipping_fee),
+            total=cast(Decimal, price.total),
             payment_method=payment_method,
         )
 
-        for line in lines:
-            line.order = order
-        OrderItem.objects.bulk_create(lines)
+        for item in order_items:
+            item.order = order
+        OrderItem.objects.bulk_create(order_items)
 
         # on_commit, never a direct call inside atomic(): an SMTP timeout here
         # would roll back a placed order whose stock is already decremented. ADR
@@ -250,7 +346,7 @@ def place_order(
         "order.placed",
         order_id=str(order.pk),
         order_number=order.order_number,
-        item_count=len(lines),
+        item_count=len(order_items),
         payment_method=payment_method,
     )
     return order

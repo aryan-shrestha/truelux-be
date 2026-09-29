@@ -105,8 +105,9 @@ writes go through the owning app's service layer, never through its models
 directly.
 
 `catalog` owns `brand`, `size`, `shade`, `category`, `product`, `product_variant`
-and `product_image`. `orders` owns `order` and `order_item`. `payments` owns the
-cash-on-delivery `payment` record; there is no gateway (ADR 0011).
+and `product_image`. `orders` owns `order`, `order_item` and the one-row
+`shipping_settings` (ADR 0017). `payments` owns the cash-on-delivery `payment`
+record; there is no gateway (ADR 0011).
 
 One boundary is genuinely non-obvious. Placing an order decrements variant stock,
 and that row belongs to `catalog`. The decrement — including its
@@ -311,6 +312,9 @@ Order                     (apps/orders)
       └── product_name / variant_size / variant_shade / sku / unit_price
                                         snapshots, see orders.md
 
+ShippingSettings          (apps/orders, one row, id = 1; ADR 0017)
+ └── inside_valley_fee / outside_valley_fee / free_shipping_threshold (nullable)
+
 `Order` has **no `user` foreign key**, deliberately and not as an oversight: ADR
 0003 makes possession of `access_token` the authorization story for Phase 1.
 
@@ -327,7 +331,7 @@ is not tied to it (ADR 0011).
 
 | System              | Purpose                                    | Integration point                                                   | Important constraint                                                                                                                                                                       |
 | ------------------- | ------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Supabase PostgreSQL | Primary database, the only source of truth | Django ORM over `DATABASE_URL`; migrations over `DATABASE_DIRECT_URL` | Runtime uses the pooler; migrations need the direct connection. Pooled connections forbid server-side cursors and prepared statements, so both are disabled. TLS required. |
+| Supabase PostgreSQL | Primary database, the only source of truth | Django ORM over `DATABASE_URL`; migrations over `DATABASE_DIRECT_URL`; both in the `DATABASE_SCHEMA` schema | Runtime uses the pooler; migrations need the direct connection. Pooled connections forbid server-side cursors and prepared statements, so both are disabled. TLS required. |
 | Cloudinary          | Storage and CDN delivery of user images    | Django `STORAGES["default"]` via `cloudinary-storage`; `ImageField` | Upload is synchronous and inside the request. Deleting a row does not delete the asset. Delivery URLs are public.                                                                          |
 | Render              | Hosting, TLS, deploys                      | Native Python service (`render.yaml`); gunicorn; uv from `uv.lock`  | Ephemeral filesystem. TLS terminates at the proxy, so Django must trust `X-Forwarded-Proto`. No scheduler, and the free instance sleeps when idle.                                         |
 
@@ -427,7 +431,7 @@ so clients parse one shape:
 
 | Condition                                               | Status    | `code`                              |
 | ------------------------------------------------------- | --------- | ----------------------------------- |
-| Request body was not valid JSON                         | 400       | `parse_error`                       |
+| Request body could not be parsed                        | 400       | `parse_error`                       |
 | Serializer or field validation failed                   | 400       | `validation_error`                  |
 | Missing or invalid credentials                          | 401       | `authentication_failed`             |
 | Authenticated but not permitted                         | 403       | `permission_denied`                 |

@@ -370,7 +370,7 @@ def test_each_extra_cart_line_costs_exactly_one_query(api_client):
 # transaction=True, overriding the module marker: the other thread runs on its own
 # connection and cannot see data held in an uncommitted test transaction.
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_checkout_for_last_unit_places_one_order():
+def test_concurrent_checkout_for_last_unit_places_one_order(shipping_settings):
     variant = _variant(stock=1)
     items = [{"variant_id": str(variant.pk), "quantity": 1}]
     codes: list[int] = []

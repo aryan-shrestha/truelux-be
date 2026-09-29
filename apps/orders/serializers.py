@@ -1,7 +1,10 @@
+from typing import Any
+
 from rest_framework import serializers
 
 from apps.orders.constants import PaymentMethod
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import Order, OrderItem, ShippingSettings
+from apps.orders.services import CartPrice, PricedLine
 
 
 class OrderItemSerializer(serializers.ModelSerializer[OrderItem]):
@@ -92,3 +95,40 @@ class CheckoutResponseSerializer(serializers.ModelSerializer[Order]):
         # Smaller than OrderReadSerializer by design: the customer has just sent
         # the address, and `access_token` reaches them only by email.
         fields = ("order_number", "status", "subtotal", "shipping_fee", "total")
+
+
+class QuoteSerializer(serializers.Serializer[dict[str, object]]):
+    items = CheckoutItemSerializer(many=True, allow_empty=False)
+    # Optional: the bag page quotes before the customer has said where it is going.
+    district = serializers.CharField(
+        max_length=100, required=False, allow_null=True, allow_blank=True, default=None
+    )
+
+    def validate_district(self, value: str | None) -> str | None:
+        return value or None
+
+
+def _money(**kwargs: Any) -> serializers.DecimalField:
+    return serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True, **kwargs)
+
+
+class QuoteLineSerializer(serializers.Serializer[PricedLine]):
+    variant_id = serializers.UUIDField(read_only=True)
+    quantity = serializers.IntegerField(read_only=True)
+    unit_price = _money()
+    line_total = _money()
+
+
+class QuoteResponseSerializer(serializers.Serializer[CartPrice]):
+    subtotal = _money()
+    shipping_fee = _money(allow_null=True)
+    discount = _money()
+    total = _money(allow_null=True)
+    free_shipping_remaining = _money(allow_null=True)
+    lines = QuoteLineSerializer(many=True, read_only=True)
+
+
+class ShippingSettingsSerializer(serializers.ModelSerializer[ShippingSettings]):
+    class Meta:
+        model = ShippingSettings
+        fields = ("inside_valley_fee", "outside_valley_fee", "free_shipping_threshold")

@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-26
+Last updated: 2026-09-29
 
 ---
 
@@ -45,7 +45,8 @@ Every endpoint here is `AllowAny`, so every serialised field is public.
 
 ## Implemented
 
-- `apps/catalog/selectors.py` — `list_published_products` (annotates `in_stock`,
+- `apps/catalog/selectors.py` — `list_published_products` (annotates `in_stock`
+  and the sale variant's `sale_price` and `sale_compare_at_price`, see `sale-prices.md`,
   `select_related("brand", "category")`, prefetches images, orders by
   `sort_order, -created_at, pk`), `get_published_product_by_slug` (adds a variant
   `Prefetch` with `select_related("size", "shade")`, ordered by size then shade, and
@@ -56,11 +57,13 @@ Every endpoint here is `AllowAny`, so every serialised field is public.
   `category` (slug; matches the category and its direct children),
   `skin_type` (repeatable slug, M2M join with `.distinct()`),
   `size` and `shade` (slug, variant join with `.distinct()`),
-  `min_price`, `max_price`, `in_stock`; `DeterministicOrderingFilter` appends `pk`.
+  `min_price`, `max_price`, `in_stock`, `on_sale` (`true`/`false` only; anything
+  else is 400); `DeterministicOrderingFilter` appends `pk`.
 - `apps/catalog/serializers.py` — list items carry `id`, `name`, `slug`,
-  `base_price`, `brand` (`name`, `slug`), `category`, `primary_image`, `in_stock`;
+  `base_price`, `brand` (`name`, `slug`), `category`, `primary_image`, `in_stock`,
+  `on_sale`, `sale_price`, `compare_at_price`, `discount_percent`;
   detail adds `description`, `images`, `variants` (`id`, `size`, `shade` or `null`,
-  `price`, `in_stock`), `skin_types`, `skin_feel` and `key_ingredients`. No
+  `price`, `compare_at_price`, `on_sale`, `discount_percent`, `in_stock`), `skin_types`, `skin_feel` and `key_ingredients`. No
   `stock_quantity` anywhere.
 - `apps/catalog/views.py`, `urls.py` — `ProductViewSet` and `BrandViewSet`
   (read-only, slug lookups), `CategoryListView`, `ShadeListView`, `SizeListView`,
@@ -155,7 +158,11 @@ List item:
   "brand": { "name": "Lumière", "slug": "lumiere" },
   "category": { "name": "Face", "slug": "face" },
   "primary_image": { "url": "…", "alt_text": "Lumière Silk Foundation" },
-  "in_stock": true
+  "in_stock": true,
+  "on_sale": false,
+  "sale_price": null,
+  "compare_at_price": null,
+  "discount_percent": null
 }
 ```
 
@@ -164,7 +171,8 @@ Detail variant:
 ```json
 { "id": "…", "size": { "name": "30 ml", "slug": "30-ml" },
   "shade": { "name": "Warm Beige", "slug": "warm-beige", "hex_code": "#D8A47F" },
-  "price": "3200.00", "in_stock": true }
+  "price": "3200.00", "compare_at_price": null, "on_sale": false,
+  "discount_percent": null, "in_stock": true }
 ```
 
 Detail also carries `skin_types` (`[{ "name", "slug" }]`), `skin_feel` and

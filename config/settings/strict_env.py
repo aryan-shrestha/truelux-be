@@ -13,7 +13,7 @@ See ADR 0008. Reads still happen only in `base.py`; this module holds the machin
 not the configuration surface.
 """
 
-from decimal import Decimal, InvalidOperation
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -26,6 +26,8 @@ from django.core.exceptions import ImproperlyConfigured
 THROTTLE_PERIODS = ("second", "minute", "hour", "day")
 
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+POSTGRES_IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]{0,62}")
 
 TRUE_VALUES = frozenset({"true", "yes", "on", "y", "1"})
 FALSE_VALUES = frozenset({"false", "no", "off", "n", "0"})
@@ -126,16 +128,6 @@ class EnvironmentReader:
             return []
         return [item.strip() for item in value.split(",") if item.strip()]
 
-    def decimal(self, name: str) -> Decimal:
-        value = self._raw(name)
-        if value is None:
-            return Decimal("0")
-        try:
-            return Decimal(value)
-        except InvalidOperation:
-            self._reject(name, f"must be a decimal amount, not {self._shown(name, value)}")
-            return Decimal("0")
-
     def url(self, name: str, *, require_https: bool = False) -> str:
         value = self._raw(name)
         if value is None:
@@ -168,6 +160,20 @@ class EnvironmentReader:
             self._reject(name, "must name a database after the host and port")
             return {}
         return parsed
+
+    def identifier(self, name: str) -> str:
+        # Lowercase and unquoted only: the value is spliced into a libpq `options`
+        # string, where a space, a comma or a second `-c` would smuggle in further
+        # settings or schemas. 63 is Postgres's identifier limit.
+        value = self._raw(name)
+        if value is None:
+            return ""
+
+        if not POSTGRES_IDENTIFIER.fullmatch(value):
+            shown = self._shown(name, value)
+            self._reject(name, f"must be a lowercase Postgres identifier like truelux, not {shown}")
+            return ""
+        return value
 
     def throttle_rate(self, name: str) -> str:
         value = self._raw(name)

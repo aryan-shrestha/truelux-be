@@ -5,7 +5,7 @@ from django.core.files import File
 from django.core.validators import RegexValidator
 from rest_framework import serializers
 
-from apps.backoffice.constants import ALLOWED_IMAGE_FORMATS, MAX_IMAGE_BYTES
+from apps.catalog.constants import ALLOWED_IMAGE_FORMATS, MAX_IMAGE_BYTES
 from apps.catalog.models import (
     Brand,
     Category,
@@ -17,7 +17,7 @@ from apps.catalog.models import (
     SkinType,
 )
 from apps.orders.constants import ALLOWED_TRANSITIONS, OrderStatus
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import Order, OrderItem, ShippingSettings
 
 
 def validate_image_upload(upload: "File[Any]") -> None:
@@ -63,10 +63,23 @@ class AdminVariantSerializer(serializers.ModelSerializer[ProductVariant]):
     size = SizeRefSerializer(read_only=True)
     shade = ShadeRefSerializer(read_only=True, allow_null=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    on_sale = serializers.BooleanField(read_only=True)
+    discount_percent = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = ProductVariant
-        fields = ("id", "sku", "size", "shade", "stock_quantity", "price_override", "price")
+        fields = (
+            "id",
+            "sku",
+            "size",
+            "shade",
+            "stock_quantity",
+            "price_override",
+            "price",
+            "compare_at_price",
+            "on_sale",
+            "discount_percent",
+        )
 
 
 class AdminImageSerializer(serializers.ModelSerializer[ProductImage]):
@@ -82,6 +95,7 @@ class AdminProductListSerializer(serializers.ModelSerializer[Product]):
     category = CategoryRefSerializer(read_only=True)
     variant_count = serializers.IntegerField(read_only=True)
     total_stock = serializers.IntegerField(read_only=True)
+    on_sale = serializers.BooleanField(read_only=True)
     primary_image_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -97,6 +111,7 @@ class AdminProductListSerializer(serializers.ModelSerializer[Product]):
             "sort_order",
             "variant_count",
             "total_stock",
+            "on_sale",
             "primary_image_url",
             "created_at",
             "updated_at",
@@ -167,6 +182,13 @@ class VariantWriteSerializer(serializers.Serializer[ProductVariant]):
     )
     stock_quantity = serializers.IntegerField(min_value=0, required=False)
     price_override = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        allow_null=True,
+        required=False,
+    )
+    compare_at_price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
         min_value=Decimal("0.01"),
@@ -393,3 +415,26 @@ class DashboardSerializer(serializers.Serializer[dict[str, Any]]):
     sales_by_day = SalesDaySerializer(many=True)
     recent_orders = AdminOrderListSerializer(many=True)
     low_stock = LowStockSerializer(many=True)
+
+
+class AdminShippingSettingsSerializer(serializers.ModelSerializer[ShippingSettings]):
+    class Meta:
+        model = ShippingSettings
+        fields = (
+            "inside_valley_fee",
+            "outside_valley_fee",
+            "free_shipping_threshold",
+            "updated_at",
+        )
+
+
+class ShippingSettingsWriteSerializer(serializers.Serializer[ShippingSettings]):
+    inside_valley_fee = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0.00")
+    )
+    outside_valley_fee = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0.00")
+    )
+    free_shipping_threshold = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0.01"), allow_null=True
+    )
