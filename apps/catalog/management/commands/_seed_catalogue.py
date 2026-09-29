@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 
 
@@ -19,6 +19,7 @@ class VariantSpec:
     shade: str | None
     stock: int
     price_override: Decimal | None = None
+    compare_at_price: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,14 @@ def sized(*sizes: tuple[str, int] | tuple[str, int, str]) -> tuple[VariantSpec, 
 
 def shaded(size: str, *shades: tuple[str, int]) -> tuple[VariantSpec, ...]:
     return tuple(VariantSpec(size, shade, stock) for shade, stock in shades)
+
+
+def on_sale(variants: tuple[VariantSpec, ...], *compare_at: str | None) -> tuple[VariantSpec, ...]:
+    """Pairs each variant with a compare-at price, or None to leave it at full price."""
+    return tuple(
+        replace(variant, compare_at_price=Decimal(price) if price else None)
+        for variant, price in zip(variants, compare_at, strict=True)
+    )
 
 
 BRANDS: tuple[BrandSpec, ...] = (
@@ -458,8 +467,9 @@ RETIRED_PRODUCT_SLUGS: tuple[str, ...] = (
 #
 # Deliberately uneven, so the storefront meets the awkward shapes a merchant can
 # produce: a product with no image, one that is sold out, one unpublished, several
-# with a price_override on the larger size, and variants at or under the low-stock
-# threshold for the admin dashboard.
+# with a price_override on the larger size, variants at or under the low-stock
+# threshold for the admin dashboard, and six variants on sale, some priced by
+# override and some by base price.
 PRODUCTS: tuple[ProductSpec, ...] = (
     ProductSpec(
         "1025 Dokdo Cleanser",
@@ -530,7 +540,7 @@ PRODUCTS: tuple[ProductSpec, ...] = (
             "A light cleansing oil with heartleaf extract that melts sunscreen and makeup, then "
             "rinses clean."
         ),
-        sized(("200-ml", 18)),
+        on_sale(sized(("200-ml", 18)), "3800.00"),
         image_urls=(
             (
                 "https://cdn.shopify.com/s/files/1/0753/1429/9158/files/anua-us-cleanser-heartleaf-pore-control-cleansing-oil-1239193742.jpg?v=1779181871&width=1000",
@@ -558,7 +568,7 @@ PRODUCTS: tuple[ProductSpec, ...] = (
         "cleanse",
         Decimal("2900.00"),
         "The sherbet-textured balm that turns to oil on contact and lifts even waterproof makeup.",
-        sized(("100-ml", 21), ("180-ml", 9, "3950.00")),
+        on_sale(sized(("100-ml", 21), ("180-ml", 9, "3950.00")), None, "4650.00"),
         image_urls=(
             (
                 "https://cdn.shopify.com/s/files/1/0266/0158/6797/files/180ml01.jpg?v=1775637077&width=1000",
@@ -636,7 +646,7 @@ PRODUCTS: tuple[ProductSpec, ...] = (
         "treat-masque",
         Decimal("3200.00"),
         "96% snail secretion filtrate in a lightweight essence that hydrates and soothes.",
-        sized(("100-ml", 28)),
+        on_sale(sized(("100-ml", 28)), "3750.00"),
         image_urls=(
             (
                 "https://cdn.shopify.com/s/files/1/0513/3775/6828/files/james_800x1067_1_1_4e9750cc-2cd6-4817-ace5-be2305a85806.jpg?v=1763111577&width=1000",
@@ -667,7 +677,7 @@ PRODUCTS: tuple[ProductSpec, ...] = (
         "treat-masque",
         Decimal("2100.00"),
         "Propolis and niacinamide in a honey-textured serum for a calm, even glow.",
-        sized(("30-ml", 24), ("60-ml", 8, "3300.00")),
+        on_sale(sized(("30-ml", 24), ("60-ml", 8, "3300.00")), None, "3900.00"),
         image_urls=(
             (
                 "https://cdn.shopify.com/s/files/1/0558/4135/7989/files/glow-serum-propolis-niacinamide-1-front.webp?v=1770278801&width=1000",
@@ -694,7 +704,7 @@ PRODUCTS: tuple[ProductSpec, ...] = (
         "treat-masque",
         Decimal("2200.00"),
         "A one-ingredient ampoule of centella asiatica extract from Madagascar for reactive skin.",
-        sized(("55-ml", 20), ("100-ml", 7, "3300.00")),
+        on_sale(sized(("55-ml", 20), ("100-ml", 7, "3300.00")), "2600.00", None),
         image_urls=(
             (
                 "https://cdn.shopify.com/s/files/1/0054/4587/7809/products/SKIN1004MadagascarCentellaAmpoule100ml.jpg?v=1597452945&width=1000",
@@ -776,7 +786,7 @@ PRODUCTS: tuple[ProductSpec, ...] = (
         "tone",
         Decimal("3000.00"),
         "77% heartleaf extract in a watery toner that takes down redness.",
-        sized(("250-ml", 25), ("500-ml", 6, "4600.00")),
+        on_sale(sized(("250-ml", 25), ("500-ml", 6, "4600.00")), None, "5400.00"),
         image_urls=(
             (
                 "https://cdn.shopify.com/s/files/1/0753/1429/9158/files/anua-us-toner-heartleaf-77-soothing-toner-1239193744.jpg?v=1779181932&width=1000",

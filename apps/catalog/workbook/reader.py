@@ -43,59 +43,88 @@ class Row:
     sheet: Sheet
     number: int
     values: dict[str, Any] = field(default_factory=dict)
+    # Optional columns the workbook does not have: not provided, unlike a blank cell.
+    absent: frozenset[str] = frozenset()
 
     def __getitem__(self, header: str) -> Any:
         return self.values.get(header)
+
+    def provides(self, header: str) -> bool:
+        return header not in self.absent
+
+
+@dataclass
+class ReadResult:
+    rows: dict[Sheet, list[Row]]
+    problems: list[Problem]
+    absent_columns: dict[Sheet, list[str]]
 
 
 class CellError(ValueError):
     pass
 
 
-def read_workbook(path: Path) -> tuple[dict[Sheet, list[Row]], list[Problem]]:
+def read_workbook(path: Path) -> ReadResult:
     """Raises the openpyxl/zipfile errors for a file that is not an .xlsx workbook."""
     workbook = load_workbook(path, read_only=True, data_only=True)
-    rows: dict[Sheet, list[Row]] = {}
-    problems: list[Problem] = []
+    result = ReadResult(rows={}, problems=[], absent_columns={})
     try:
         for sheet in DATA_SHEETS:
             if sheet.title not in workbook.sheetnames:
-                problems.append(Problem(sheet.title, "the sheet is missing from the workbook"))
-                rows[sheet] = []
+                result.problems.append(
+                    Problem(sheet.title, "the sheet is missing from the workbook")
+                )
+                result.rows[sheet] = []
                 continue
-            rows[sheet] = _read_sheet(sheet, workbook[sheet.title].iter_rows(), problems)
+            _read_sheet(sheet, workbook[sheet.title].iter_rows(), result)
     finally:
         workbook.close()
-    return rows, problems
+    return result
 
 
-def _read_sheet(sheet: Sheet, cells: Any, problems: list[Problem]) -> list[Row]:
+def _read_sheet(sheet: Sheet, cells: Any, result: ReadResult) -> None:
     positions: dict[str, int] = {}
-    rows: list[Row] = []
+    absent: frozenset[str] = frozenset()
+    rows = result.rows[sheet] = []
     for number, raw in enumerate(cells, start=HEADER_ROW):
         values = tuple(cell.value for cell in raw)
         if number == HEADER_ROW:
-            found = _header_positions(sheet, values, problems)
+            found = _header_positions(sheet, values, result.problems)
             if found is None:
-                return []
+                return
             positions = found
+            absent = frozenset(c.header for c in sheet.columns if c.header not in positions)
+            if absent:
+                result.absent_columns[sheet] = [
+                    c.header for c in sheet.columns if c.header in absent
+                ]
             continue
         if number < FIRST_DATA_ROW or all(_is_blank(value) for value in values):
             continue
-        rows.append(_read_row(sheet, number, values, positions, problems))
-    return rows
+        row = _read_row(sheet, number, values, positions, result.problems)
+        row.absent = absent
+        rows.append(row)
 
 
 def _header_positions(
     sheet: Sheet, values: tuple[Any, ...], problems: list[Problem]
 ) -> dict[str, int] | None:
+    """A missing optional column is left out of the positions: the rows do not provide
+    it, so a workbook filled in before that column was added still imports without
+    touching the field. Unknown columns are ignored."""
     found = {str(value).strip(): index for index, value in enumerate(values) if value}
-    missing = [column.header for column in sheet.columns if column.header not in found]
+    missing = [
+        column.header
+        for column in sheet.columns
+        if (column.required or column.identifies) and column.header not in found
+    ]
     for header in missing:
         problems.append(Problem(sheet.title, f'the column "{header}" is missing from row 1'))
     if missing:
         return None
-    return {column.header: found[column.header] for column in sheet.columns}
+    return {
+        column.header: found[column.header] for column in sheet.columns if column.header in found
+    }
 
 
 def _read_row(
@@ -107,8 +136,8 @@ def _read_row(
 ) -> Row:
     row = Row(sheet, number)
     for column in sheet.columns:
-        position = positions[column.header]
-        raw = values[position] if position < len(values) else None
+        position = positions.get(column.header)
+        raw = values[position] if position is not None and position < len(values) else None
         if _is_blank(raw):
             if column.required:
                 problems.append(Problem(sheet.title, "is required", number, column.header))

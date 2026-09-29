@@ -24,6 +24,7 @@ from apps.catalog.models import (
     Size,
     SkinType,
 )
+from apps.catalog.selectors import PRODUCT_ON_SALE
 from apps.orders.constants import OrderStatus
 from apps.orders.models import Order
 
@@ -36,6 +37,7 @@ def list_products() -> QuerySet[Product]:
         .annotate(
             variant_count=Count("variants"),
             total_stock=Coalesce(Sum("variants__stock_quantity"), 0),
+            on_sale=PRODUCT_ON_SALE,
         )
         .prefetch_related("images")
         .order_by("sort_order", "-created_at", "pk")

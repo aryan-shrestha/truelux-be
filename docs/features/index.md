@@ -14,7 +14,7 @@ Redis were removed at the fork.
 | 2   | api-error-contract  | Implemented | `features/api-error-contract.md`  | 1          | 2026-09-28   |
 | 3   | media-storage       | Implemented | `features/media-storage.md`       | —          | 2026-09-25   |
 | 4   | product-catalog     | Implemented | `features/product-catalog.md`     | 2, 3       | 2026-09-26   |
-| 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-26   |
+| 5   | catalog-browsing    | Implemented | `features/catalog-browsing.md`    | 4          | 2026-09-29   |
 | 6   | orders              | Implemented | `features/orders.md`              | 2, 4       | 2026-09-25   |
 | 7   | checkout            | Implemented | `features/checkout.md`            | 6, 19      | 2026-09-27   |
 | 8   | payments            | Implemented | `features/payments.md`            | 7          | 2026-09-25   |
@@ -25,10 +25,11 @@ Redis were removed at the fork.
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-26   |
-| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15, 19 | 2026-09-28 |
+| 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15, 19 | 2026-09-29 |
 | 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
-| 18  | catalogue-import    | Implemented | `features/catalogue-import.md`    | 3, 4, 17   | 2026-09-26   |
+| 18  | catalogue-import    | Implemented | `features/catalogue-import.md`    | 3, 4, 17   | 2026-09-29   |
 | 19  | checkout-quote-and-shipping | Implemented | `features/checkout-quote-and-shipping.md` | 6, 7, 16 | 2026-09-27 |
+| 20  | sale-prices         | Implemented | `features/sale-prices.md`         | 4, 5, 11, 16, 18 | 2026-09-29 |
 
 `Depends on` refers to the `#` column of this table.
 
@@ -57,6 +58,10 @@ Redis were removed at the fork.
   free-shipping threshold live in a `ShippingSettings` row that staff edit at
   `/api/v1/admin/settings/shipping/`; `POST /checkout/quote/` prices a cart through
   the same `price_cart` that checkout uses, and `GET /shipping/` serves the fees.
+- **Sales are a compare-at price** (#20, ADR 0018). A variant is on sale while its
+  `compare_at_price` is above its price; the API derives `on_sale` and
+  `discount_percent`, `?on_sale=true` lists sale products, and checkout still charges
+  `price`. Migration `catalog/0003_compare_at_price`.
 - **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, the Render
   build fills an empty database with the demo catalogue, orders and staff login.
 
@@ -99,6 +104,7 @@ Redis were removed at the fork.
 | 0015 | The build seeds demo data when asked            | deployment, demo-seed, staff-auth     |
 | 0016 | The real catalogue is imported from a workbook  | catalogue-import, deployment          |
 | 0017 | Shipping fees are merchant data                 | checkout-quote-and-shipping, checkout, admin-api |
+| 0018 | A sale is a compare-at price                    | sale-prices, catalog-browsing, admin-api, catalogue-import |
 
 ## Deferred
 

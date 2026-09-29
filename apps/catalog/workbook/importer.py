@@ -74,6 +74,7 @@ class ImportReport:
     image_uploads: list[ImageUpload] = field(default_factory=list)
     uploaded: int = 0
     upload_failures: list[str] = field(default_factory=list)
+    absent_columns: dict[Sheet, list[str]] = field(default_factory=dict)
 
     @property
     def planned_uploads(self) -> int:
@@ -84,8 +85,9 @@ def import_catalogue(
     path: Path, *, images_dir: Path | None, replace_images: bool, dry_run: bool
 ) -> ImportReport:
     """Validates the whole workbook and writes nothing if any problem is found."""
-    rows, problems = read_workbook(path)
-    report = ImportReport(problems=problems)
+    read = read_workbook(path)
+    rows = read.rows
+    report = ImportReport(problems=read.problems, absent_columns=read.absent_columns)
 
     with transaction.atomic():
         catalogue = Catalogue()
@@ -110,6 +112,28 @@ def _changes(instance: Any, desired: Mapping[str, Any]) -> dict[str, Any]:
     return {name: value for name, value in desired.items() if getattr(instance, name) != value}
 
 
+# Model field -> the optional column that sets it. Taxonomy sheets share names.
+OPTIONAL_COLUMNS = {
+    "description": "Description",
+    "is_active": "Active",
+    "sort_order": "Sort order",
+    "skin_feel": "Skin feel",
+    "key_ingredients": "Key ingredients",
+    "price_override": "Price override (NPR)",
+    "compare_at_price": "Compare-at price (NPR)",
+}
+
+
+def _provided(row: Row, fields: Mapping[str, Any]) -> dict[str, Any]:
+    """Drops the fields whose optional column the workbook does not have, so an
+    existing row keeps them. A new row still gets the blank-cell default."""
+    return {
+        name: value
+        for name, value in fields.items()
+        if name not in OPTIONAL_COLUMNS or row.provides(OPTIONAL_COLUMNS[name])
+    }
+
+
 class _Writer:
     def __init__(self, catalogue: Catalogue, plan: Plan, report: ImportReport) -> None:
         self.catalogue = catalogue
@@ -132,13 +156,13 @@ class _Writer:
             update_product(product=product, fields={}, is_published=True)
 
     def _upsert[E: (Brand, Category, Shade, Size, SkinType)](
-        self, sheet: Sheet, model: type[E], existing: E | None, fields: dict[str, Any]
+        self, sheet: Sheet, row: Row, model: type[E], existing: E | None, fields: dict[str, Any]
     ) -> E:
         tally = self.report.tallies[sheet]
         if existing is None:
             tally.created += 1
             return create_taxonomy_entry(model=model, fields=fields)
-        changed = _changes(existing, fields)
+        changed = _changes(existing, _provided(row, fields))
         if not changed:
             tally.unchanged += 1
             return existing
@@ -157,7 +181,7 @@ class _Writer:
                 "is_active": row["Active"] is not False,
                 "sort_order": row["Sort order"] or 0,
             }
-            brand = self._upsert(BRANDS, Brand, brands.get(row["Name"]), fields)
+            brand = self._upsert(BRANDS, row, Brand, brands.get(row["Name"]), fields)
             brands[brand.name] = brand
             if logo := self.plan.brand_logos.get(row.number):
                 self.report.logo_uploads.append(LogoUpload(brand, logo))
@@ -177,7 +201,7 @@ class _Writer:
         for row in self.rows(sheet):
             fields = {"name": row["Name"], "sort_order": row["Sort order"] or 0}
             fields |= {field_name: row[header] for field_name, header in extra}
-            entry = self._upsert(sheet, model, entries.get(row["Name"]), fields)
+            entry = self._upsert(sheet, row, model, entries.get(row["Name"]), fields)
             entries[row["Name"]] = entry
         self._note_missing(sheet, set(existing), {row["Name"] for row in self.rows(sheet)})
         return entries
@@ -191,7 +215,7 @@ class _Writer:
             fields = {"name": row["Name"], "sort_order": row["Sort order"] or 0}
             if row["Parent category"]:
                 fields["parent"] = categories[(row["Parent category"], None)]
-            category = self._upsert(CATEGORIES, Category, categories.get(key), fields)
+            category = self._upsert(CATEGORIES, row, Category, categories.get(key), fields)
             categories[key] = category
         self._note_missing(
             CATEGORIES,
@@ -230,6 +254,7 @@ class _Writer:
             ]
             publish = bool(row["Published"])
             product = self.catalogue.find_product(name)
+            skin_types_given = row.provides("Skin types")
 
             if product is None:
                 product = create_product(
@@ -239,12 +264,13 @@ class _Writer:
                 if publish:
                     to_publish.append(product)
             else:
-                changed = _changes(product, fields)
-                skin_types_changed = {s.pk for s in product.skin_types.all()} != {
-                    s.pk for s in wanted_skin_types
-                }
-                publishing = publish and not product.is_published
-                unpublishing = not publish and product.is_published
+                changed = _changes(product, _provided(row, fields))
+                skin_types_changed = skin_types_given and {
+                    s.pk for s in product.skin_types.all()
+                } != {s.pk for s in wanted_skin_types}
+                published_given = row.provides("Published")
+                publishing = published_given and publish and not product.is_published
+                unpublishing = published_given and not publish and product.is_published
                 if changed or skin_types_changed or unpublishing:
                     update_product(
                         product=product,
@@ -281,6 +307,7 @@ class _Writer:
                 "size": sizes[row["Size"]],
                 "shade": shades[row["Shade"]] if row["Shade"] else None,
                 "price_override": row["Price override (NPR)"],
+                "compare_at_price": row["Compare-at price (NPR)"],
             }
             stock = row["Stock"]
             variant = self.catalogue.variants.get(row["SKU"])
@@ -294,7 +321,10 @@ class _Writer:
                     set_variant_stock(variant=variant, quantity=stock)
                 tally.created += 1
                 continue
-            changed = _changes(variant, fields)
+            # The catalogue loaded this variant's product separately; the written one
+            # carries this run's base price, which the compare-at check reads.
+            variant.product = self.products.get(variant.product_id, variant.product)
+            changed = _changes(variant, _provided(row, fields))
             stock_changed = variant.stock_quantity != stock
             if changed or stock_changed:
                 update_variant(

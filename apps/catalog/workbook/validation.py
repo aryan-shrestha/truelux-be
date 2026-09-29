@@ -294,6 +294,8 @@ class Validator:
                 self._problem(row, "Product name", f'"{product_name}" is not on the Products sheet')
                 continue
 
+            self._check_compare_at(row, sheet_products.get(slugify(product_name)))
+
             key = self.catalogue.product_key(product_name)
             existing = self.catalogue.variants.get(sku) if sku else None
             if existing is not None and existing.product_id != key:
@@ -327,6 +329,29 @@ class Validator:
                         "Size",
                     )
                 )
+
+    def _check_compare_at(self, row: Row, product_row: Row | None) -> None:
+        compare_at = row["Compare-at price (NPR)"]
+        if compare_at is None:
+            return
+        price = row["Price override (NPR)"]
+        existing = self.catalogue.variants.get(row["SKU"]) if row["SKU"] else None
+        if not row.provides("Price override (NPR)") and existing is not None:
+            price = existing.price_override
+        if price is None:
+            # The sheet's base price, when the product is on it, is the one the
+            # import is about to write.
+            if product_row is not None:
+                price = product_row["Base price (NPR)"]
+            elif product := self.catalogue.find_product(row["Product name"]):
+                price = product.base_price
+        if price is not None and compare_at <= price:
+            self._problem(
+                row,
+                "Compare-at price (NPR)",
+                f"must be more than the price, {price}; leave it blank if the variant "
+                "is not on sale",
+            )
 
     def _check_published_products_have_variants(self) -> None:
         with_variants: set[ProductKey] = {

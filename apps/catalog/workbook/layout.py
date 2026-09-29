@@ -31,6 +31,9 @@ class Column:
     max_length: int | None = None
     # A dropdown of the Name column of this sheet.
     choices_from: str | None = None
+    # Part of how a row is matched to the database, so its header must be present
+    # even though its cells may be blank.
+    identifies: bool = False
 
 
 @dataclass(frozen=True)
@@ -103,6 +106,7 @@ CATEGORIES = Sheet(
             "category from this sheet: categories are one level deep only.",
             28,
             choices_from="Categories",
+            identifies=True,
         ),
         _sort_order(),
     ),
@@ -273,6 +277,7 @@ VARIANTS = Sheet(
             "Optional. A shade from the Shades sheet. Blank means the product has no shade.",
             18,
             choices_from="Shades",
+            identifies=True,
         ),
         Column(
             "Stock",
@@ -288,8 +293,15 @@ VARIANTS = Sheet(
             18,
             kind=Kind.PRICE,
         ),
+        Column(
+            "Compare-at price (NPR)",
+            "Optional. The old price, shown struck through to put this variant on sale. "
+            "Must be more than the price the customer pays. Blank means not on sale.",
+            20,
+            kind=Kind.PRICE,
+        ),
     ),
-    ("Hydrating Rose Serum", "GL-ROSE-30", "30 ml", None, 24, None),
+    ("Hydrating Rose Serum", "GL-ROSE-30", "30 ml", None, 24, None, None),
 )
 
 DATA_SHEETS = (BRANDS, CATEGORIES, SHADES, SIZES, SKIN_TYPES, PRODUCTS, VARIANTS)
@@ -340,6 +352,11 @@ READ_ME: tuple[tuple[str, str], ...] = (
     (
         "text",
         '• Prices are in NPR, as plain numbers: 2450 or 2450.50, without commas or "Rs".',
+    ),
+    (
+        "text",
+        "• To put a variant on sale, lower its price and enter the old price as its "
+        "Compare-at price. Clear the Compare-at price when the sale ends.",
     ),
     ("text", "• Hex colours are # followed by six characters, like #D8A47F."),
     (

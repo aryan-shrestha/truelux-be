@@ -127,6 +127,8 @@ class ProductVariant(UUIDModel, TimeStampedModel):
     # and the feature document both refer to by behaviour.
     stock_quantity = models.IntegerField(default=0)
     price_override = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Display-only "was" price (ADR 0018). Never charged, so it never enters price_cart.
+    compare_at_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         db_table = "product_variant"
@@ -148,6 +150,13 @@ class ProductVariant(UUIDModel, TimeStampedModel):
                 condition=models.Q(price_override__isnull=True) | models.Q(price_override__gt=0),
                 name="product_variant_price_override_positive",
             ),
+            # "Above the price" cannot be a constraint: the price may be the
+            # product's base_price. The services check it (ADR 0018).
+            models.CheckConstraint(
+                condition=models.Q(compare_at_price__isnull=True)
+                | models.Q(compare_at_price__gt=0),
+                name="product_variant_compare_at_positive",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -158,6 +167,21 @@ class ProductVariant(UUIDModel, TimeStampedModel):
         if self.price_override is not None:
             return self.price_override
         return self.product.base_price
+
+    @property
+    def discount_percent(self) -> int | None:
+        return discount_percent(price=self.price, compare_at_price=self.compare_at_price)
+
+    @property
+    def on_sale(self) -> bool:
+        return self.discount_percent is not None
+
+
+def discount_percent(*, price: Decimal, compare_at_price: Decimal | None) -> int | None:
+    """None unless on sale. Floored, so the badge never overstates the saving."""
+    if compare_at_price is None or compare_at_price <= price:
+        return None
+    return int((compare_at_price - price) * 100 // compare_at_price)
 
 
 class ProductImage(UUIDModel, TimeStampedModel):

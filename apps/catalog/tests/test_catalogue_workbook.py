@@ -64,8 +64,8 @@ def catalogue() -> Rows:
             ]
         ],
         VARIANTS: [
-            ["Rose Serum", "GL-ROSE-30", "30 ml", None, 12, None],
-            ["Rose Serum", "GL-ROSE-50", "50 ml", "Warm Honey", 5, 3100.5],
+            ["Rose Serum", "GL-ROSE-30", "30 ml", None, 12, None, 2900],
+            ["Rose Serum", "GL-ROSE-50", "50 ml", "Warm Honey", 5, 3100.5, None],
         ],
     }
 
@@ -281,7 +281,7 @@ def _snapshot():
         ),
         "variants": list(
             ProductVariant.objects.order_by("sku").values_list(
-                "sku", "stock_quantity", "price_override", "updated_at"
+                "sku", "stock_quantity", "price_override", "compare_at_price", "updated_at"
             )
         ),
         "images": list(ProductImage.objects.values_list("image", "is_primary")),
@@ -471,6 +471,16 @@ INVALID = {
         lambda rows: _set(rows, VARIANTS, 1, "Price override (NPR)", 0),
         'column "Price override (NPR)": must be more than 0',
     ),
+    "compare-at not above the base price": (
+        lambda rows: _set(rows, VARIANTS, 0, "Compare-at price (NPR)", 2450),
+        'Sheet "Variants", row 3, column "Compare-at price (NPR)": must be more than the '
+        "price, 2450.00",
+    ),
+    "compare-at not above the override": (
+        lambda rows: _set(rows, VARIANTS, 1, "Compare-at price (NPR)", 3000),
+        'Sheet "Variants", row 4, column "Compare-at price (NPR)": must be more than the '
+        "price, 3100.50",
+    ),
     "fractional stock": (
         lambda rows: _set(rows, VARIANTS, 0, "Stock", 12.5),
         'Sheet "Variants", row 3, column "Stock": "12.5" is not a whole number',
@@ -588,13 +598,82 @@ def test_a_missing_sheet_or_column_is_a_problem(tmp_path, media):
     path = write(tmp_path, catalogue())
     workbook = load_workbook(path)
     del workbook["Sizes"]
-    workbook["Brands"]["D1"] = "Is active"
+    workbook["Brands"]["A1"] = "Brand name"
     workbook.save(path)
 
     errors = failed_import(path)
 
     assert 'Sheet "Sizes": the sheet is missing from the workbook' in errors
-    assert 'Sheet "Brands": the column "Active" is missing from row 1' in errors
+    assert 'Sheet "Brands": the column "Name" is missing from row 1' in errors
+
+
+def _drop_column(path: Path, sheet: Sheet, header: str) -> None:
+    workbook = load_workbook(path)
+    worksheet = workbook[sheet.title]
+    headers = [cell.value for cell in worksheet[1]]
+    worksheet.delete_cols(headers.index(header) + 1)
+    workbook.save(path)
+
+
+@pytest.mark.django_db
+def test_an_old_layout_workbook_leaves_an_existing_compare_at_intact(tmp_path, media):
+    run_import(write(tmp_path, catalogue()))
+    rows = catalogue()
+    _set(rows, VARIANTS, 0, "Stock", 30)
+    path = write(tmp_path, rows, "old.xlsx")
+    _drop_column(path, VARIANTS, "Compare-at price (NPR)")
+
+    output = run_import(path)
+
+    variant = ProductVariant.objects.get(sku="GL-ROSE-30")
+    assert (variant.stock_quantity, variant.compare_at_price) == (30, Decimal("2900.00"))
+    assert 'column "Compare-at price (NPR)" not in workbook, left unchanged' in output
+
+
+@pytest.mark.django_db
+def test_an_old_layout_workbook_creates_variants_with_no_compare_at(tmp_path, media):
+    path = write(tmp_path, catalogue())
+    _drop_column(path, VARIANTS, "Compare-at price (NPR)")
+
+    run_import(path)
+
+    assert ProductVariant.objects.count() == 2
+    assert not ProductVariant.objects.filter(compare_at_price__isnull=False).exists()
+
+
+@pytest.mark.django_db
+def test_a_missing_optional_column_leaves_existing_rows_alone(tmp_path, media):
+    rows = catalogue()
+    _set(rows, BRANDS, 0, "Active", "No")
+    run_import(write(tmp_path, rows))
+    rows = catalogue()
+    _set(rows, BRANDS, 0, "Description", "Now with SPF.")
+    path = write(tmp_path, rows, "renamed.xlsx")
+    workbook = load_workbook(path)
+    workbook["Brands"]["D1"] = "Is active"
+    workbook.save(path)
+
+    output = run_import(path)
+
+    brand = Brand.objects.get()
+    assert (brand.description, brand.is_active) == ("Now with SPF.", False)
+    assert 'column "Active" not in workbook, left unchanged' in output
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("sheet", "column"),
+    [(VARIANTS, "Shade"), (CATEGORIES, "Parent category")],
+    ids=["shade", "parent-category"],
+)
+def test_a_missing_column_that_identifies_rows_is_a_problem(tmp_path, media, sheet, column):
+    path = write(tmp_path, catalogue())
+    _drop_column(path, sheet, column)
+
+    errors = failed_import(path)
+
+    assert f'Sheet "{sheet.title}": the column "{column}" is missing from row 1' in errors
+    assert not Product.objects.exists()
 
 
 def test_a_file_that_is_not_a_workbook_is_refused(tmp_path):
@@ -695,3 +774,47 @@ def test_a_failed_upload_is_reported_without_stopping_the_rest(tmp_path, media, 
     product_images = list(Product.objects.get().images.all())
     assert [Path(str(image.image.name)).name for image in product_images] == ["back.png"]
     assert product_images[0].is_primary
+
+
+@pytest.mark.django_db
+def test_import_sets_and_clears_the_compare_at_price(tmp_path, media):
+    run_import(write(tmp_path, catalogue()))
+    assert ProductVariant.objects.get(sku="GL-ROSE-30").compare_at_price == Decimal("2900.00")
+
+    rows = catalogue()
+    _set(rows, VARIANTS, 0, "Compare-at price (NPR)", None)
+    output = run_import(write(tmp_path, rows, "cleared.xlsx"))
+
+    assert ProductVariant.objects.get(sku="GL-ROSE-30").compare_at_price is None
+    assert "Variants: 0 created, 1 updated, 1 unchanged" in output
+
+
+@pytest.mark.django_db
+def test_a_sale_can_start_in_the_same_import_that_lowers_the_base_price(tmp_path, media):
+    rows = catalogue()
+    _set(rows, VARIANTS, 0, "Compare-at price (NPR)", None)
+    run_import(write(tmp_path, rows))
+
+    rows = catalogue()
+    _set(rows, PRODUCTS, 0, "Base price (NPR)", 2000)
+    _set(rows, VARIANTS, 0, "Compare-at price (NPR)", 2450)
+    run_import(write(tmp_path, rows, "sale.xlsx"))
+
+    variant = ProductVariant.objects.get(sku="GL-ROSE-30")
+    assert (variant.price, variant.compare_at_price) == (Decimal("2000.00"), Decimal("2450.00"))
+    assert variant.on_sale is True
+
+
+@pytest.mark.django_db
+def test_the_compare_at_is_checked_against_a_product_already_in_the_database(tmp_path, media):
+    run_import(write(tmp_path, catalogue()))
+    rows = catalogue()
+    rows[PRODUCTS].clear()
+    _append(rows, VARIANTS, ["Rose Serum", "GL-ROSE-50B", "50 ml", None, 1, None, 2000])
+
+    errors = failed_import(write(tmp_path, rows, "db.xlsx"))
+
+    assert (
+        'Sheet "Variants", row 5, column "Compare-at price (NPR)": must be more than the '
+        "price, 2450.00" in errors
+    )

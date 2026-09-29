@@ -338,6 +338,7 @@ class Command(BaseCommand):
                 ),
                 stock_quantity=variant.stock,
                 price_override=variant.price_override,
+                compare_at_price=variant.compare_at_price,
             )
             for variant in spec.variants
         )

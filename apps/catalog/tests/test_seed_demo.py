@@ -131,6 +131,31 @@ def test_seed_includes_the_shapes_the_storefront_has_to_survive(seeded):
     assert ProductVariant.objects.filter(stock_quantity__lte=5).count() >= 5
 
 
+def test_the_seed_data_puts_six_variants_on_sale_by_override_and_by_base_price():
+    sale_variants = [
+        (product, variant, variant.compare_at_price)
+        for product in PRODUCTS
+        for variant in product.variants
+        if variant.compare_at_price is not None
+    ]
+
+    assert len(sale_variants) == 6
+    assert {variant.price_override is None for _, variant, _ in sale_variants} == {True, False}
+    for product, variant, compare_at in sale_variants:
+        assert compare_at > (variant.price_override or product.base_price), product.slug
+        assert product.is_published, product.slug
+
+
+@pytest.mark.django_db
+def test_seeded_sale_variants_are_on_sale(seeded):
+    sale_variants = ProductVariant.objects.filter(compare_at_price__isnull=False).select_related(
+        "product"
+    )
+
+    assert sale_variants.count() == 6
+    assert all(variant.on_sale for variant in sale_variants)
+
+
 @pytest.mark.django_db
 def test_running_twice_creates_no_duplicates(seeded):
     call_command("seed_demo")

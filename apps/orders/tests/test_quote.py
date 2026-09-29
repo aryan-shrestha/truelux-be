@@ -257,3 +257,14 @@ def test_shipping_uses_the_catalog_throttle(api_client, shipping_settings):
         statuses = [api_client.get(reverse("v1:shipping")).status_code for _ in range(2)]
 
     assert statuses == [200, 429]
+
+
+def test_a_variant_on_sale_is_quoted_at_its_price_not_its_compare_at(api_client, shipping_settings):
+    variant = _variant(price=Decimal("2720.00"))
+    variant.compare_at_price = Decimal("3200.00")
+    variant.save()
+
+    response = _quote(api_client, items=_lines(variant, quantity=1), district="Lalitpur")
+
+    assert response.data["lines"][0]["unit_price"] == "2720.00"
+    assert response.data["subtotal"] == "2720.00"
