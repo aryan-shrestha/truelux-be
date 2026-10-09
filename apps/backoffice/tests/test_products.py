@@ -271,7 +271,8 @@ def test_variant_stock_edit_goes_through_set_variant_stock(staff_client):
         )
 
     assert response.status_code == 200
-    set_stock.assert_called_once_with(variant=mock.ANY, quantity=9)
+    set_stock.assert_called_once_with(variant=mock.ANY, quantity=9, actor=mock.ANY)
+    assert set_stock.call_args.kwargs["actor"].is_staff
     variant.refresh_from_db()
     assert variant.price_override == Decimal("1200.00")
 

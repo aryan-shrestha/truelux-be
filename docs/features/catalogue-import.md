@@ -155,7 +155,10 @@ exported workbook imports cleanly without the images folder.
 **Decision**
 
 A new variant is created with 0 and then set, so every imported stock figure has the
-service's `catalog.stock_set` audit line.
+service's `catalog.stock_set` audit line and a `stocktake` `StockMovement` noted
+"Catalogue workbook import" with no actor (`inventory.md`). An existing variant's
+stock is set directly with `set_variant_stock`, not through `update_variant`, so it
+carries the same note.
 
 ---
 
@@ -165,6 +168,8 @@ service's `catalog.stock_set` audit line.
   **Check which database `.env` points at before running anything**: `.env` is not
   necessarily local.
 - A dry run logs the services' `catalog.*` lines even though it rolls back.
+- Imported stock is an absolute count, so it overwrites any sale made since the
+  workbook was exported. The ledger shows the resulting variance as a stocktake.
 - After a partly failed upload, a product that got some of its images is skipped
   on the next run; use `--replace-images` for it.
 - Deleting or replacing an image leaves the Cloudinary asset (`media-storage.md`).

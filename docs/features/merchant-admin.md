@@ -50,7 +50,9 @@ confused with the admin app.
     **Generate variants** (chosen sizes × chosen shades, or shadeless when no shade
     is ticked; SKUs from the product, size and shade slugs).
   - `ProductVariantAdmin`: `stock_quantity` read-only; **Adjust stock** calls
-    `set_variant_stock`.
+    `set_variant_stock`, recorded as a stocktake by the signed-in user.
+- `apps/inventory/admin.py` — `StockMovementAdmin`, the ledger, read-only (no add,
+  change or delete; ADR 0019).
   - `ProductImageAdmin`: `is_primary` read-only; **Make primary** calls
     `update_product_image`.
 - `apps/orders/admin.py` — `OrderAdmin`, `status` read-only, `access_token` never

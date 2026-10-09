@@ -30,6 +30,7 @@ Redis were removed at the fork.
 | 18  | catalogue-import    | Implemented | `features/catalogue-import.md`    | 3, 4, 17   | 2026-09-29   |
 | 19  | checkout-quote-and-shipping | Implemented | `features/checkout-quote-and-shipping.md` | 6, 7, 16 | 2026-09-27 |
 | 20  | sale-prices         | Implemented | `features/sale-prices.md`         | 4, 5, 11, 16, 18 | 2026-09-29 |
+| 21  | inventory           | Implemented | `features/inventory.md`           | 4, 6, 16, 18 | 2026-10-09 |
 
 `Depends on` refers to the `#` column of this table.
 

@@ -50,7 +50,7 @@ colour axis became an optional shade. `apps/orders` writes stock only through
   `ProductVariant.price` resolves `price_override` against `product.base_price`.
 - `apps/catalog/exceptions.py` — `VariantUnavailable`, `InsufficientStock`,
   `ProductHasNoVariants`.
-- `apps/catalog/services/stock.py` — `decrement_variant_stock`,
+- `apps/inventory/services.py` — `decrement_variant_stock`,
   `restore_variant_stock` (whole-cart, one ascending-`pk`
   `select_for_update(of=("self",))`) and `set_variant_stock` (absolute count, locked).
 - `apps/catalog/services/products.py` — create/update/delete for products, variants

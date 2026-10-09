@@ -132,6 +132,7 @@ apps/
     catalog/
     orders/
     payments/
+    inventory/
     backoffice/
         models
         serializers
@@ -145,11 +146,12 @@ apps/
         tests
 ```
 
-These five apps plus `core` are the complete set. `users` owns staff accounts and
+These six apps plus `core` are the complete set. `users` owns staff accounts and
 the JWT endpoints; `catalog` owns brands, categories, sizes, shades, products,
 variants and images; `orders` owns orders and their items; `payments` owns the
-cash-on-delivery records; `backoffice` is the staff admin API and owns no models
-(ADR 0013). Do not add another app without an ADR.
+cash-on-delivery records; `inventory` owns every stock write and the
+stock-movement ledger (ADR 0019); `backoffice` is the staff admin API and owns no
+models (ADR 0013). Do not add another app without an ADR.
 
 The staff back-office is the TrueLux admin app over `/api/v1/admin/`; the Django
 admin at `/django-admin/` remains for superusers. Both write through the same

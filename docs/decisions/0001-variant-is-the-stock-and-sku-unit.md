@@ -12,6 +12,11 @@ are stored as `Size` and `Color` lookup tables with foreign keys from
 generic attribute model still stands; its assumption that both axes are "known
 in advance" does not.
 
+Partly superseded by [ADR 0019](0019-stock-changes-are-a-ledger-in-the-inventory-app.md):
+stock changes are now recorded in a `StockMovement` ledger, and the stock services
+live in `apps/inventory/services.py`. `stock_quantity` on the variant remains the
+balance.
+
 ---
 
 ## Context

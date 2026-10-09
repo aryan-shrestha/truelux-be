@@ -15,7 +15,6 @@ from apps.catalog.services import (
     create_taxonomy_entry,
     create_variant,
     delete_product_image,
-    set_variant_stock,
     update_product,
     update_taxonomy_entry,
     update_variant,
@@ -40,6 +39,9 @@ from apps.catalog.workbook.validation import (
     Validator,
     split_list,
 )
+from apps.inventory.services import set_variant_stock
+
+IMPORT_NOTE = "Catalogue workbook import"
 
 # What a failed upload raises: the file could not be read, or Cloudinary refused it.
 UPLOAD_ERRORS = (OSError, cloudinary.exceptions.Error)
@@ -316,9 +318,11 @@ class _Writer:
                 if product is None:
                     product = self.catalogue.find_product(row["Product name"])
                 assert product is not None  # noqa: S101 - validation checked the reference
-                variant = create_variant(product=product, fields={"sku": row["SKU"], **fields})
+                variant = create_variant(
+                    product=product, fields={"sku": row["SKU"], **fields}, actor=None
+                )
                 if stock:
-                    set_variant_stock(variant=variant, quantity=stock)
+                    set_variant_stock(variant=variant, quantity=stock, actor=None, note=IMPORT_NOTE)
                 tally.created += 1
                 continue
             # The catalogue loaded this variant's product separately; the written one
@@ -326,12 +330,11 @@ class _Writer:
             variant.product = self.products.get(variant.product_id, variant.product)
             changed = _changes(variant, _provided(row, fields))
             stock_changed = variant.stock_quantity != stock
+            if changed:
+                update_variant(variant=variant, fields=changed, actor=None)
+            if stock_changed:
+                set_variant_stock(variant=variant, quantity=stock, actor=None, note=IMPORT_NOTE)
             if changed or stock_changed:
-                update_variant(
-                    variant=variant,
-                    fields=changed,
-                    stock_quantity=stock if stock_changed else None,
-                )
                 tally.updated += 1
             else:
                 tally.unchanged += 1

@@ -34,7 +34,7 @@ it usually belongs next to its only caller.
 
 Split a module when it grows past roughly 400 lines, into `services/` with
 `__init__.py` re-exporting the public names, so imports elsewhere do not change.
-`apps/catalog/services/` (`stock.py`, `products.py`, `taxonomy.py`) is the example.
+`apps/catalog/services/` (`products.py`, `taxonomy.py`) is the example.
 Patch a service where it is looked up: `apps.catalog.services.products.set_variant_stock`,
 not the package re-export.
 

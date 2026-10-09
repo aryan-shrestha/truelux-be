@@ -14,6 +14,7 @@ from apps.catalog.tests.factories import (
     ShadeFactory,
     SizeFactory,
 )
+from apps.orders.tests.factories import OrderFactory
 from apps.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
@@ -166,24 +167,25 @@ def test_adjust_stock_sets_the_counted_total(admin_client):
 # connection and cannot see data held in an uncommitted test transaction.
 @pytest.mark.django_db(transaction=True)
 def test_a_restock_and_a_sale_do_not_interleave():
-    from apps.catalog.services import decrement_variant_stock, set_variant_stock
+    from apps.inventory.services import decrement_variant_stock, set_variant_stock
 
     product = ProductFactory.create(is_published=True)
     variant = ProductVariantFactory.create(product=product, stock_quantity=10)
+    order = OrderFactory.create()
 
     start = threading.Barrier(2)
 
     def sell() -> None:
         try:
             start.wait(timeout=10)
-            decrement_variant_stock(quantities={variant.pk: 3})
+            decrement_variant_stock(quantities={variant.pk: 3}, order_id=order.pk)
         finally:
             connections.close_all()
 
     def restock() -> None:
         try:
             start.wait(timeout=10)
-            set_variant_stock(variant=variant, quantity=50)
+            set_variant_stock(variant=variant, quantity=50, actor=None)
         finally:
             connections.close_all()
 

@@ -137,7 +137,7 @@ def test_allowed_transitions_agree_with_the_services(start, to):
     order = OrderFactory.create(status=start)
 
     try:
-        transition_order(order=order, to=to)
+        transition_order(order=order, to=to, actor=None)
     except DomainError:
         moved = False
     else:

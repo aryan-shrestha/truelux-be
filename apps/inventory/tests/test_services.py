@@ -7,8 +7,9 @@ from django.db import connections, transaction
 
 from apps.catalog.exceptions import InsufficientStock, VariantUnavailable
 from apps.catalog.models import ProductVariant
-from apps.catalog.services import decrement_variant_stock, restore_variant_stock
 from apps.catalog.tests.factories import ProductFactory, ProductVariantFactory
+from apps.inventory.services import decrement_variant_stock, restore_variant_stock
+from apps.orders.tests.factories import OrderFactory
 
 
 @pytest.mark.django_db
@@ -16,7 +17,7 @@ def test_decrement_variant_stock_reduces_quantity():
     product = ProductFactory(is_published=True)
     variant = ProductVariantFactory(product=product, stock_quantity=10)
 
-    decrement_variant_stock(quantities={variant.pk: 3})
+    decrement_variant_stock(quantities={variant.pk: 3}, order_id=OrderFactory().pk)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 7
@@ -27,7 +28,7 @@ def test_decrement_returns_locked_variants_for_price_resolution():
     product = ProductFactory(is_published=True, base_price=Decimal("4500.00"))
     variant = ProductVariantFactory(product=product, stock_quantity=5)
 
-    locked = decrement_variant_stock(quantities={variant.pk: 1})
+    locked = decrement_variant_stock(quantities={variant.pk: 1}, order_id=OrderFactory().pk)
 
     assert locked[variant.pk].price == Decimal("4500.00")
 
@@ -38,7 +39,7 @@ def test_decrement_beyond_available_raises_insufficient_stock():
     variant = ProductVariantFactory(product=product, stock_quantity=2)
 
     with pytest.raises(InsufficientStock) as exc_info:
-        decrement_variant_stock(quantities={variant.pk: 3})
+        decrement_variant_stock(quantities={variant.pk: 3}, order_id=OrderFactory().pk)
 
     details = exc_info.value.details
     assert details["variant_id"] == str(variant.pk)
@@ -56,7 +57,7 @@ def test_decrement_is_all_or_nothing_across_the_cart():
     scarce = ProductVariantFactory(product=product, stock_quantity=1)
 
     with pytest.raises(InsufficientStock):
-        decrement_variant_stock(quantities={plenty.pk: 1, scarce.pk: 5})
+        decrement_variant_stock(quantities={plenty.pk: 1, scarce.pk: 5}, order_id=OrderFactory().pk)
 
     plenty.refresh_from_db()
     assert plenty.stock_quantity == 10
@@ -67,7 +68,7 @@ def test_decrement_unknown_variant_raises_variant_unavailable():
     unknown = uuid.uuid4()
 
     with pytest.raises(VariantUnavailable) as exc_info:
-        decrement_variant_stock(quantities={unknown: 1})
+        decrement_variant_stock(quantities={unknown: 1}, order_id=OrderFactory().pk)
 
     assert exc_info.value.details["variant_ids"] == [str(unknown)]
 
@@ -78,7 +79,7 @@ def test_decrement_unpublished_variant_raises_variant_unavailable():
     variant = ProductVariantFactory(product=product, stock_quantity=5)
 
     with pytest.raises(VariantUnavailable):
-        decrement_variant_stock(quantities={variant.pk: 1})
+        decrement_variant_stock(quantities={variant.pk: 1}, order_id=OrderFactory().pk)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 5
@@ -89,7 +90,7 @@ def test_restore_variant_stock_returns_quantity():
     product = ProductFactory(is_published=True)
     variant = ProductVariantFactory(product=product, stock_quantity=4)
 
-    restore_variant_stock(quantities={variant.pk: 3})
+    restore_variant_stock(quantities={variant.pk: 3}, order_id=OrderFactory().pk, actor=None)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 7
@@ -100,7 +101,7 @@ def test_restore_variant_stock_ignores_publication_state():
     product = ProductFactory(is_published=False)
     variant = ProductVariantFactory(product=product, stock_quantity=0)
 
-    restore_variant_stock(quantities={variant.pk: 2})
+    restore_variant_stock(quantities={variant.pk: 2}, order_id=OrderFactory().pk, actor=None)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 2
@@ -110,6 +111,7 @@ def test_restore_variant_stock_ignores_publication_state():
 def test_concurrent_decrement_does_not_oversell():
     product = ProductFactory(is_published=True)
     variant = ProductVariantFactory(product=product, stock_quantity=1)
+    order = OrderFactory()
 
     start = threading.Barrier(2)
     failures: list[Exception] = []
@@ -118,7 +120,7 @@ def test_concurrent_decrement_does_not_oversell():
         try:
             start.wait(timeout=10)
             with transaction.atomic():
-                decrement_variant_stock(quantities={variant.pk: 1})
+                decrement_variant_stock(quantities={variant.pk: 1}, order_id=order.pk)
         except Exception as exc:  # noqa: BLE001 - the race's loser is the assertion
             failures.append(exc)
         finally:
@@ -145,7 +147,7 @@ def test_non_positive_quantity_is_rejected_before_any_write(quantity):
     variant = ProductVariantFactory(product=product, stock_quantity=5)
 
     with pytest.raises(ValueError, match="positive"):
-        decrement_variant_stock(quantities={variant.pk: quantity})
+        decrement_variant_stock(quantities={variant.pk: quantity}, order_id=OrderFactory().pk)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 5
@@ -157,7 +159,7 @@ def test_restore_also_rejects_a_non_positive_quantity():
     variant = ProductVariantFactory(product=product, stock_quantity=5)
 
     with pytest.raises(ValueError, match="positive"):
-        restore_variant_stock(quantities={variant.pk: -2})
+        restore_variant_stock(quantities={variant.pk: -2}, order_id=OrderFactory().pk, actor=None)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 5

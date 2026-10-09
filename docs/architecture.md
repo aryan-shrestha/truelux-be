@@ -59,6 +59,7 @@ apps/
     catalog/
     orders/
     payments/
+    inventory/
     backoffice/
 docs/
     architecture.md
@@ -93,11 +94,11 @@ Superusers also sign in to the Django admin at `/django-admin/` with a session.
 ### `backoffice`
 
 The staff admin API under `/api/v1/admin/` (ADR 0013). It owns no models: it reads
-through its own selectors and writes only through the services of `catalog` and
-`orders`. Every view inherits `StaffAPIView` (JWT only, `IsAdminUser`, `admin`
+through its own selectors and writes only through the services of `catalog`,
+`orders` and `inventory`. Every view inherits `StaffAPIView` (JWT only, `IsAdminUser`, `admin`
 throttle scope). See `docs/features/admin-api.md`.
 
-### `catalog`, `orders`, `payments`
+### `catalog`, `orders`, `payments`, `inventory`
 
 One app per bounded piece of the product, named for the thing it owns. A domain app
 owns its models, its endpoints, and the rules for changing its data. Cross-app
@@ -107,13 +108,15 @@ directly.
 `catalog` owns `brand`, `size`, `shade`, `category`, `product`, `product_variant`
 and `product_image`. `orders` owns `order`, `order_item` and the one-row
 `shipping_settings` (ADR 0017). `payments` owns the cash-on-delivery `payment`
-record; there is no gateway (ADR 0011).
+record; there is no gateway (ADR 0011). `inventory` owns the `stock_movement`
+ledger and every write to `product_variant.stock_quantity` (ADR 0019).
 
-One boundary is genuinely non-obvious. Placing an order decrements variant stock,
-and that row belongs to `catalog`. The decrement — including its
-`select_for_update()` — goes through `apps.catalog.services`, never through
-`ProductVariant.objects` from inside an orders service. The lock belongs on the
-side that owns the row.
+One boundary is genuinely non-obvious. The stock column sits on `catalog`'s
+`product_variant` row, but only `apps.inventory.services` writes it: the
+decrement, the restore, stocktakes and adjustments, each with its
+`select_for_update()` and a ledger row in the same transaction. `orders` and
+`catalog` call those services and never write `stock_quantity` through
+`ProductVariant.objects`.
 
 ---
 
@@ -286,10 +289,11 @@ A product is visible to the public API only when `is_published` and its brand
 `is_active` (`VISIBLE_PRODUCT` in `apps/catalog/selectors.py`); checkout refuses a
 hidden variant with `variant_unavailable`.
 
-`ProductVariant.stock_quantity` is the only column two apps write. `orders`
-reaches it exclusively through `apps.catalog.services.decrement_variant_stock`
-and `restore_variant_stock`, which take the whole cart and lock every row in one
-ascending-`pk` `select_for_update(of=("self",))`. See ADR 0004.
+`ProductVariant.stock_quantity` is written only by `apps.inventory.services`.
+`orders` reaches it through `decrement_variant_stock` and `restore_variant_stock`,
+which take the whole cart and lock every row in one ascending-`pk`
+`select_for_update(of=("self",))`. See ADR 0004. Every write also records a
+`StockMovement` (ADR 0019).
 
 Conventions that apply to every model:
 
@@ -324,6 +328,14 @@ Payment                   (apps/payments)
 
 Checkout records a pending COD payment; staff mark the cash collected. Order status
 is not tied to it (ADR 0011).
+
+StockMovement             (apps/inventory, ADR 0019)
+ ├── variant (SET_NULL) + sku snapshot
+ ├── reason, quantity_change, balance_after (>= 0)
+ │                                    direction checked against reason
+ ├── order (SET_NULL, nullable)       sales and cancellations
+ ├── actor → User (SET_NULL, nullable)
+ └── note                             immutable: no service updates a row
 
 ---
 

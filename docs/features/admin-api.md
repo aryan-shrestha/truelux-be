@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-29
+Last updated: 2026-10-09
 
 ---
 
@@ -23,6 +23,8 @@ What is included in this implementation?
 - Dashboard summary
 - Products: CRUD, publish toggle, variants (with stock), images (upload, reorder,
   set primary, delete)
+- Stock: relative adjustments with a reason, and the stock-movement ledger
+  (`inventory.md`)
 - Brands, categories, shades, sizes and skin types: CRUD
 - Orders: list, detail, status transitions
 - Shipping settings: fees and free-shipping threshold
@@ -33,7 +35,7 @@ What is explicitly outside the scope?
 - Staff user management. Superusers use `/django-admin/`.
 - Bulk import or export, CSV
 - Refunds, partial cancellation, order editing
-- Audit log beyond the existing structured log lines
+- An audit log for anything other than stock (stock has its ledger, `inventory.md`)
 
 ---
 
@@ -41,8 +43,9 @@ What is explicitly outside the scope?
 
 - Every write that has a business consequence goes through a service, per
   [ADR 0002](0002-admin-writes-go-through-the-service-layer.md). Order status changes
-  use `apps/orders/services.py`. Stock changes use `set_variant_stock` in
-  `apps/catalog/services.py`. New catalogue writes (create or update a product,
+  use `apps/orders/services.py`. Stock changes use `set_variant_stock` and
+  `adjust_variant_stock` in `apps/inventory/services.py`, which record a
+  `StockMovement` with the requesting staff member as its actor (ADR 0019). New catalogue writes (create or update a product,
   variant or image, promote a primary image) are added to
   `apps/catalog/services.py` and are also used by the Django admin.
 - Image uploads go to Cloudinary **outside** `transaction.atomic()`, per
@@ -83,7 +86,7 @@ and cash is collected at delivery. Cancellation restores stock (ADR 0004, unchan
   `JWTAuthentication` only, `IsAuthenticated` + `IsAdminUser`, `ScopedRateThrottle`
   with scope `admin` (`DJANGO_THROTTLE_ADMIN`). A test walks every route in
   `apps/backoffice/urls.py` and fails if a view does not inherit it.
-- `apps/catalog/services/` is now a package (`stock.py`, `products.py`,
+- `apps/catalog/services/` is now a package (`products.py`,
   `taxonomy.py`, re-exported from `__init__.py`): `create_product`, `update_product`,
   `delete_product`, `create_variant`, `update_variant`
   (stock through `set_variant_stock`), `delete_variant`, `add_product_image`,
@@ -213,6 +216,8 @@ return bare arrays.
 | POST | `products/{id}/variants/` | adds a variant |
 | PATCH | `variants/{id}/` | `sku`, `size_id`, `shade_id`, `price_override`, `compare_at_price`, `stock_quantity` (through `set_variant_stock`) |
 | DELETE | `variants/{id}/` | `409` if ordered |
+| POST | `variants/{id}/stock-adjustments/` | relative change: `quantity_change` (signed int), `reason` (`received`, `returned`, `damaged`, `expired`, `tester`, `correction`), `note` (optional, ≤ 500). `201` with the movement. `400 validation_error` with `details.quantity_change` when the sign contradicts the reason, the change is 0, or stock would go below zero |
+| GET | `stock-movements/` | paginated ledger, newest first. Filters: `variant` (id), `order` (id), `reason` (repeatable) |
 | POST | `products/{id}/images/` | `multipart/form-data`: `image` (≤ 5 MB, jpeg/png/webp), `alt_text`, `is_primary` |
 | PATCH | `images/{id}/` | `alt_text`, `sort_order`, `is_primary` (promoting clears the old primary in one transaction) |
 | DELETE | `images/{id}/` | `204` |
@@ -262,6 +267,25 @@ rules. A product's `on_sale` is true when any of its variants is on sale.
 
 Publishing a product with no variants is rejected with
 `422 product_has_no_variants`.
+
+`stock_quantity` on a variant create or PATCH is an absolute count. It is recorded
+as a `stocktake` movement whose `quantity_change` is the variance; on create it is
+noted "Opening stock". Prefer `stock-adjustments/` for deliveries and losses: it is
+relative, so it cannot overwrite a sale made in the meantime.
+
+Stock movement representation:
+
+```json
+{
+  "id": "uuid", "variant_id": "uuid", "sku": "LUM-SF-30-WB",
+  "reason": "received", "quantity_change": 6, "balance_after": 18,
+  "order_id": null, "order_number": null,
+  "actor_email": "staff@truelux.com", "note": "Delivery #12",
+  "created_at": "2026-10-09T10:00:00Z"
+}
+```
+
+`variant_id` is `null` once the variant has been deleted; `sku` still identifies it.
 
 ### Taxonomy: brands, categories, shades, sizes, skin types
 
@@ -340,7 +364,7 @@ tokens get `403`.
   an ordered product or variant is 409; list shape, filters and a constant three
   queries; `compare_at_price` round trip, `on_sale`/`discount_percent` on variants,
   the not-above-the-price 400 and the list's `on_sale` flag and filter
-  (`sale-prices.md`); `skin_type_ids` set, kept, replaced and cleared, unknown id 400; variant stock edits call `set_variant_stock` (mocked) and reject
+  (`sale-prices.md`); `skin_type_ids` set, kept, replaced and cleared, unknown id 400; variant stock edits call `set_variant_stock` (mocked) with the caller as actor and reject
   negatives; image upload, primary promotion, wrong type and >5 MB are 400; a
   non-multipart upload is 415.
 - `test_taxonomy.py` — brand list includes inactive brands with counts; logo upload
@@ -354,6 +378,10 @@ tokens get `403`.
   services for every pair.
 - `test_shipping_settings.py` — GET and partial PATCH, validation, non-staff 403,
   and a PATCH changing the next quote.
+- `test_stock.py` — an adjustment returns its movement and changes stock; a
+  contradictory sign is a field error; order reasons cannot be posted; unknown
+  variant 404; a stock PATCH is a stocktake by the caller; the ledger lists newest
+  first and filters by variant and reason, with the order number.
 - `test_dashboard.py` — revenue excludes cancelled orders and uses the Kathmandu
   day; `sales_by_day` has 30 zero-filled days; every status is counted; five recent
   orders; low stock is lowest first and capped at ten.
@@ -375,7 +403,8 @@ apps/backoffice/
 ├── views.py
 ├── urls.py
 └── tests/
-apps/catalog/services/     # products.py, taxonomy.py, stock.py
+apps/catalog/services/     # products.py, taxonomy.py
+apps/inventory/services.py # set_variant_stock, adjust_variant_stock
 apps/orders/constants.py   # ALLOWED_TRANSITIONS
-apps/orders/services.py    # confirm_order, transition_order, update_shipping_settings
+apps/orders/services.py    # confirm_order, transition_order (actor for cancel), update_shipping_settings
 ```

@@ -97,7 +97,7 @@ def test_cancelling_restores_stock(status):
     order = OrderFactory.create(status=status)
     OrderItemFactory.create(order=order, variant=variant, quantity=2)
 
-    cancel_order(order=order)
+    cancel_order(order=order, actor=None)
 
     variant.refresh_from_db()
     order.refresh_from_db()
@@ -111,7 +111,7 @@ def test_cancelling_sums_repeated_variants_before_restoring():
     OrderItemFactory.create(order=order, variant=variant, quantity=2)
     OrderItemFactory.create(order=order, variant=variant, quantity=3)
 
-    cancel_order(order=order)
+    cancel_order(order=order, actor=None)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 5
@@ -124,7 +124,7 @@ def test_cancel_after_shipping_raises_and_restores_nothing(status):
     OrderItemFactory.create(order=order, variant=variant, quantity=2)
 
     with pytest.raises(OrderAlreadyShipped):
-        cancel_order(order=order)
+        cancel_order(order=order, actor=None)
 
     variant.refresh_from_db()
     order.refresh_from_db()
@@ -138,7 +138,7 @@ def test_cancelling_an_already_cancelled_order_does_not_restore_stock_twice():
     OrderItemFactory.create(order=order, variant=variant, quantity=2)
 
     with pytest.raises(OrderNotCancellable):
-        cancel_order(order=order)
+        cancel_order(order=order, actor=None)
 
     variant.refresh_from_db()
     assert variant.stock_quantity == 4
@@ -158,7 +158,7 @@ def test_concurrent_cancellation_restores_the_stock_only_once():
     def cancel_it() -> None:
         try:
             start.wait(timeout=10)
-            cancel_order(order=order)
+            cancel_order(order=order, actor=None)
         except Exception as exc:  # noqa: BLE001 - the race's loser is the assertion
             failures.append(exc)
         finally:
