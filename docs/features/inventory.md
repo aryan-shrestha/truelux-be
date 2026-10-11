@@ -125,9 +125,8 @@ Not started; each needs its own decision:
   selected variant
 - `seed_demo` writes stock with `bulk_create` and records no movements (demo
   data only)
-- The admin app (front end) does not use the adjustment or ledger endpoints yet.
-  `handover.md` still tells the merchant that stock is always the counted total,
-  which is true of the variant form.
+- The admin app uses the adjustment and per-variant ledger endpoints
+  (`admin/docs/features/stock-ledger.md`); it has no shop-wide ledger page.
 
 ---
 
