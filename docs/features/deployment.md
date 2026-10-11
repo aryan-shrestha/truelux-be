@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-27
+Last updated: 2026-09-29
 
 ---
 
@@ -148,6 +148,12 @@ silently; the app needs no extension, and `gen_random_uuid` is in `pg_catalog`.
   first deploy. Switching it off later keeps whatever was seeded.
 - `DEMO_STAFF_PASSWORD` under 12 characters fails the build while
   `SEED_DEMO_DATA` is true.
+- **Render's free instances block outbound SMTP on 25, 465 and 587.** The connect
+  is dropped rather than refused, so it hangs; with `EMAIL_TIMEOUT` applied per
+  resolved address it outlasts gunicorn's 30 s timeout and the worker is killed
+  mid-checkout. `render.yaml` therefore sets `EMAIL_PORT=2587`, Resend's alternate
+  STARTTLS port (Resend has no 2525). An existing service keeps its old value until
+  the Blueprint is re-synced or the variable is edited in the dashboard.
 - Locally, a Homebrew Postgres on 5432 would shadow the container and is too old
   (14) for `NULLS NOT DISTINCT`; that is why compose uses 5433.
 

@@ -139,8 +139,11 @@ services:
         value: 2000/hour
       - key: DJANGO_EMAIL_BACKEND
         value: django.core.mail.backends.smtp.EmailBackend
+      # Render's free instances block outbound 25, 465 and 587: a connect to them
+      # hangs until gunicorn kills the worker. 2587 is Resend's alternate STARTTLS
+      # port, so EMAIL_USE_TLS stays as it is.
       - key: EMAIL_PORT
-        value: "587"
+        value: "2587"
       - key: EMAIL_USE_TLS
         value: "True"
       - key: EMAIL_TIMEOUT

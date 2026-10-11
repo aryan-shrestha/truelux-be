@@ -18,10 +18,10 @@ Redis were removed at the fork.
 | 6   | orders              | Implemented | `features/orders.md`              | 2, 4       | 2026-09-25   |
 | 7   | checkout            | Implemented | `features/checkout.md`            | 6, 19      | 2026-09-27   |
 | 8   | payments            | Implemented | `features/payments.md`            | 7          | 2026-09-25   |
-| 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-25   |
+| 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-29   |
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
 | 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-29 |
-| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-27   |
+| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-29   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-10-11   |

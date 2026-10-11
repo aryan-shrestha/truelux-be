@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-25
+Last updated: 2026-09-29
 
 ---
 
@@ -109,10 +109,9 @@ The intended implementation:
 
 ## Remaining
 
-- **No provider account is configured.** `local.py` prints to the console and
-  `test.py` uses `locmem`, so nothing here needs one; production needs
-  `DJANGO_EMAIL_BACKEND`, `EMAIL_HOST` and credentials pointed at a real relay
-  before a customer receives anything. That is four values in `.env`, no code.
+- **The provider is Resend over SMTP**, `smtp.resend.com` on port 2587 — not 587,
+  which Render's free instances block (see Gotchas). `local.py` prints to the
+  console and `test.py` uses `locmem`, so neither needs an account.
 - **No email has been seen rendered by a real client.** The templates are checked
   by tests and readable in the console backend, but nothing has looked at them in
   Gmail or Outlook, where support for even inline CSS varies.
@@ -179,6 +178,13 @@ pass for the wrong reason.
   and the link must be HTTPS.
 - A failure is invisible to everyone: the customer sees a successful order page, and
   the merchant sees nothing. The only trace is an `ERROR` line. Nothing alerts.
+- **A send that outlasts gunicorn's timeout is not caught.** Gunicorn aborts the
+  worker with `SystemExit`, which `send_email`'s `except Exception` does not
+  catch, and the order has already committed — so the customer gets a 500 for a
+  placed order, and a retry places a second one. `EMAIL_TIMEOUT` bounds each
+  connect attempt, not the send: `socket.create_connection` tries every address
+  the host resolves to. This is how port 587 on Render's free tier, which drops
+  outbound SMTP, surfaced; `render.yaml` uses Resend's 2587 instead.
 - SMTP occupies a gunicorn worker for the duration of the send, in the same way an
   image upload does. On Render's smaller instances this is a real concurrency cost.
 - `local.py` already sets the console backend. Do not remove it — it is what makes
