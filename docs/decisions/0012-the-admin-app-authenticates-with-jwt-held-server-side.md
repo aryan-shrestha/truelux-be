@@ -1,6 +1,6 @@
 # ADR 0012: The admin app authenticates with JWT held server-side
 
-Status: Accepted
+Status: Superseded by [ADR 0020](0020-the-admin-app-keeps-jwt-in-browser-storage.md)
 
 Date: 2026-09-25
 

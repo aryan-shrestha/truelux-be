@@ -13,12 +13,12 @@ tutorial for the entire codebase.
 
 The TrueLux API: a Django REST Framework JSON API for a multi-brand cosmetics
 store. It serves two clients: the public Next.js storefront (anonymous, guest
-checkout, cash on delivery) and the Next.js admin app (staff, JWT held server-side,
-ADR 0012). It is stateless: every piece of durable state lives in a managed service
+checkout, cash on delivery) and the React admin app (staff, JWT in browser storage,
+ADR 0020). It is stateless: every piece of durable state lives in a managed service
 outside the running container.
 
 ```text
-Storefront (browser)      Admin app (Next.js server)
+Storefront (browser)      Admin app (browser)
           ↘                  ↙
 
 Render (TLS termination, HTTP proxy)
@@ -215,8 +215,8 @@ visible where the data is defined, not only in a migration.
 **Authentication.** JWT via `djangorestframework-simplejwt` is the only DRF
 authentication class. `POST /api/v1/auth/token/` issues an access/refresh pair to
 active staff only (`USER_AUTHENTICATION_RULE = apps.users.authentication.is_active_staff`);
-the admin app's server keeps them and sends `Authorization: Bearer <access>`
-(ADR 0012). Refresh tokens rotate and the previous one is blacklisted, so logout is
+the admin app keeps them in browser storage and sends `Authorization: Bearer <access>`
+(ADR 0020). Refresh tokens rotate and the previous one is blacklisted, so logout is
 a real server-side revocation. The Django admin keeps its own session login. The
 user model uses email as `USERNAME_FIELD`; there is no username.
 

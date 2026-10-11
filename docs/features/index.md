@@ -3,8 +3,8 @@
 Current feature inventory.
 
 TrueLux is a multi-brand cosmetics store. The API serves a public Next.js storefront
-(guest checkout, cash on delivery only) and a Next.js admin app for staff
-(`/api/v1/admin/`, JWT held server-side). The Django admin at `/django-admin/`
+(guest checkout, cash on delivery only) and a React admin app for staff
+(`/api/v1/admin/`, JWT in browser storage). The Django admin at `/django-admin/`
 remains for superusers. The codebase was forked from a clothing store; Khalti and
 Redis were removed at the fork.
 
@@ -24,7 +24,7 @@ Redis were removed at the fork.
 | 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-27   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
-| 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-09-26   |
+| 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-10-11   |
 | 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15, 19 | 2026-09-29 |
 | 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
 | 18  | catalogue-import    | Implemented | `features/catalogue-import.md`    | 3, 4, 17   | 2026-09-29   |
@@ -44,7 +44,7 @@ Redis were removed at the fork.
 - **The database cache replaces Redis** (ADR 0014). Throttle counters live in the
   `django_cache` table, created by `createcachetable` in the build and in
   `make migrate`.
-- **Staff sign in over JWT** (#15, ADR 0012), and **the admin API** (#16, ADR 0013)
+- **Staff sign in over JWT** (#15, ADR 0020), and **the admin API** (#16, ADR 0013)
   gives the admin app everything the merchant does day to day. Catalogue writes are
   services shared with the Django admin (ADR 0002).
 - **Skin types and care details** (#17): products carry optional skin types, a skin
@@ -70,9 +70,9 @@ Redis were removed at the fork.
 
 - The storefront must serve `/orders/<access_token>`: the confirmation email links
   there (`STOREFRONT_URL`).
-- The admin app obtains tokens from `/api/v1/auth/token/`, keeps them server-side,
-  and sends `multipart/form-data` for image and logo uploads. Every other write is
-  JSON. The OpenAPI schema is served at `/api/schema/` (Swagger at
+- The admin app obtains tokens from `/api/v1/auth/token/`, keeps them in browser
+  storage, must be listed in `DJANGO_CORS_ALLOWED_ORIGINS`, and sends
+  `multipart/form-data` for image and logo uploads. Every other write is JSON. The OpenAPI schema is served at `/api/schema/` (Swagger at
   `/api/schema/swagger-ui/`); the repository does not keep a generated copy.
 
 ## Not done
@@ -99,13 +99,14 @@ Redis were removed at the fork.
 | 0009 | Brand is a first-class model                    | brands, catalog-browsing              |
 | 0010 | Shade replaces colour, and is optional          | shades-and-sizes, orders              |
 | 0011 | Cash on delivery only                           | payments, orders, checkout            |
-| 0012 | The admin app authenticates with JWT server-side | staff-auth, admin-api                |
+| 0012 | The admin app authenticates with JWT server-side | superseded by 0020                   |
 | 0013 | The admin API is its own app                    | admin-api                             |
 | 0014 | The database cache replaces Redis               | deployment, every throttled endpoint  |
 | 0015 | The build seeds demo data when asked            | deployment, demo-seed, staff-auth     |
 | 0016 | The real catalogue is imported from a workbook  | catalogue-import, deployment          |
 | 0017 | Shipping fees are merchant data                 | checkout-quote-and-shipping, checkout, admin-api |
 | 0018 | A sale is a compare-at price                    | sale-prices, catalog-browsing, admin-api, catalogue-import |
+| 0020 | The admin app keeps JWT in browser storage      | staff-auth, admin-api, deployment     |
 
 ## Deferred
 

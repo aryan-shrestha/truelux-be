@@ -26,7 +26,8 @@ What is explicitly outside the scope?
 
 - Redis (removed, ADR 0014), a task queue, staging, observability beyond Render's
   log stream
-- The two Next.js apps, which deploy to Vercel from their own repositories
+- The Next.js storefront and the React admin app, which deploy to Vercel from their
+  own repositories
 
 ---
 
@@ -133,8 +134,8 @@ silently; the app needs no extension, and `gen_random_uuid` is in `pg_catalog`.
 ## Gotchas
 
 - `DJANGO_CORS_ALLOWED_ORIGINS` may be empty and boots cleanly, but then the
-  storefront is blocked by the browser. The admin app calls the API from its server
-  (ADR 0012) and needs no CORS entry.
+  browser blocks the storefront and the admin app. Both call the API from the
+  browser (ADR 0020), so both origins must be listed.
 - The free instance sleeps; the first request pays a cold start.
 - `/health/` touches nothing; `/health/ready/` checks the database and the cache
   table and is not the platform health check.

@@ -2,14 +2,14 @@
 
 Status: Implemented
 
-Last updated: 2026-09-26
+Last updated: 2026-10-11
 
 ---
 
 ## Goal
 
-Let staff sign in to the TrueLux admin app (`admin.truelux.com`), a separate Next.js
-application, with tokens it can hold server-side.
+Let staff sign in to the TrueLux admin app (`admin.truelux.com`), a separate
+client-only React application that keeps its tokens in browser storage.
 
 ---
 
@@ -41,11 +41,13 @@ What is explicitly outside the scope?
 `ROTATE_REFRESH_TOKENS` and `BLACKLIST_AFTER_ROTATION`, but nothing issues tokens.
 `rest_framework_simplejwt.token_blacklist` must be in `INSTALLED_APPS` for the
 blacklist to work.
-[ADR 0012](../decisions/0012-the-admin-app-authenticates-with-jwt-held-server-side.md)
-explains why the admin app uses JWT and where the tokens live.
+[ADR 0020](../decisions/0020-the-admin-app-keeps-jwt-in-browser-storage.md)
+explains where the tokens live. It supersedes ADR 0012, which kept them on a
+Next.js server.
 
-The admin app calls the API **from its server only**, so these endpoints need no
-CORS entry for the admin origin.
+The admin app calls the API **from the browser**, so its origin must be listed in
+`DJANGO_CORS_ALLOWED_ORIGINS`. django-cors-headers allows the `Authorization` header
+by default.
 
 ---
 
@@ -143,6 +145,11 @@ The service raises a `DomainError`, as every service here does.
   `User.DoesNotExist`, which the handler reports as `404 not_found`.
 - The access token lives 15 minutes and the refresh token 7 days
   (`JWT_ACCESS_TOKEN_LIFETIME_MINUTES`, `JWT_REFRESH_TOKEN_LIFETIME_DAYS`).
+- Both tokens sit in the admin app's `localStorage`, readable by any script on that
+  origin (ADR 0020). Each rotation restarts the refresh lifetime, so a stolen
+  refresh token that keeps being refreshed never expires. Whichever holder refreshes
+  second gets `401`. To cut off a stolen chain, deactivate the user or remove
+  `is_staff`; a password change or the victim's logout does not.
 - `DJANGO_SECRET_KEY` signs the tokens; PyJWT warns below 32 bytes.
 - On a deploy, changing `DEMO_STAFF_PASSWORD` does nothing once the user exists:
   `--deploy` never resets it. Change the password from the Django admin instead.
@@ -214,6 +221,7 @@ The token and refresh endpoints are public but throttled. `me` and `logout` requ
 - `me` returns the user, is 401 without a token, 403 for a non-staff token, and
   401 with only a Django admin session.
 - The `auth` throttle returns 429.
+- A preflight from an allowed origin may send the `Authorization` header.
 - `seed_staff` is idempotent, produces a login that works, and refuses outside DEBUG.
   `--deploy` creates a working login outside DEBUG, is a no-op while
   `SEED_DEMO_DATA` is false, leaves an existing user's password alone, and rejects a

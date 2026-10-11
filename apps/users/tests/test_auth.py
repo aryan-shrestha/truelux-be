@@ -143,6 +143,23 @@ def test_me_ignores_a_django_admin_session(client, staff):
     assert response.status_code == 401
 
 
+def test_a_cross_origin_browser_may_send_a_bearer_token(api_client, settings):
+    settings.CORS_ALLOWED_ORIGINS = ["https://admin.example.com"]
+
+    response = api_client.options(
+        reverse("v1:auth-me"),
+        headers={
+            "origin": "https://admin.example.com",
+            "access-control-request-method": "GET",
+            "access-control-request-headers": "authorization",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response["Access-Control-Allow-Origin"] == "https://admin.example.com"
+    assert "authorization" in response["Access-Control-Allow-Headers"].split(", ")
+
+
 def test_exceeding_the_auth_throttle_returns_429(api_client, staff):
     with mock.patch.object(
         SimpleRateThrottle,
