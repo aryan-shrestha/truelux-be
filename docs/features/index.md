@@ -21,9 +21,9 @@ Redis were removed at the fork.
 | 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-29   |
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
 | 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-29 |
-| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-09-29   |
+| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-11-02   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
-| 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-09-26   |
+| 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-11-02   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-10-11   |
 | 16  | admin-api           | Implemented | `features/admin-api.md`           | 4, 6, 13, 14, 15, 19 | 2026-09-29 |
 | 17  | skin-types          | Implemented | `features/skin-types.md`          | 4, 5, 16   | 2026-09-26   |
@@ -63,6 +63,9 @@ Redis were removed at the fork.
   `compare_at_price` is above its price; the API derives `on_sale` and
   `discount_percent`, `?on_sale=true` lists sale products, and checkout still charges
   `price`. Migration `catalog/0003_compare_at_price`.
+- **PostgreSQL 13 and Django 5.1** (ADR 0021). The client's cPanel host runs
+  PostgreSQL 13, so Django is pinned below 5.2 and the variant uniqueness rule is two
+  partial constraints (migration `catalog/0004`). Compose and CI run 13.
 - **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, the Render
   build fills an empty database with the demo catalogue, orders and staff login.
 
@@ -97,7 +100,7 @@ Redis were removed at the fork.
 | 0007 | Size and colour are lookup tables               | product-catalog (colour: see 0010)    |
 | 0008 | Every environment variable is required          | every app; `config/settings` (its `SHIPPING_FEE_*` entries superseded by 0017) |
 | 0009 | Brand is a first-class model                    | brands, catalog-browsing              |
-| 0010 | Shade replaces colour, and is optional          | shades-and-sizes, orders              |
+| 0010 | Shade replaces colour, and is optional          | shades-and-sizes, orders (its `NULLS NOT DISTINCT`: see 0021) |
 | 0011 | Cash on delivery only                           | payments, orders, checkout            |
 | 0012 | The admin app authenticates with JWT server-side | superseded by 0020                   |
 | 0013 | The admin API is its own app                    | admin-api                             |
@@ -106,7 +109,9 @@ Redis were removed at the fork.
 | 0016 | The real catalogue is imported from a workbook  | catalogue-import, deployment          |
 | 0017 | Shipping fees are merchant data                 | checkout-quote-and-shipping, checkout, admin-api |
 | 0018 | A sale is a compare-at price                    | sale-prices, catalog-browsing, admin-api, catalogue-import |
+| 0019 | Stock changes are a ledger in the inventory app | inventory, checkout, orders, admin-api |
 | 0020 | The admin app keeps JWT in browser storage      | staff-auth, admin-api, deployment     |
+| 0021 | Production runs PostgreSQL 13, so Django stays on 5.1 | shades-and-sizes, deployment, every dependency |
 
 ## Deferred
 

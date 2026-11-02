@@ -277,7 +277,7 @@ Product                   (apps/catalog)
  ├── skin_types (M2M, optional), skin_feel, key_ingredients
  ├── ProductVariant (CASCADE)      the sellable unit, see ADR 0001
  │    ├── size (PROTECT) / shade (PROTECT, nullable)
- │    ├── unique (product, size, shade) NULLS NOT DISTINCT
+ │    ├── unique (product, size, shade); unique (product, size) when shadeless
  │    ├── sku (unique), stock_quantity
  │    └── price_override (nullable)
  └── ProductImage (CASCADE)

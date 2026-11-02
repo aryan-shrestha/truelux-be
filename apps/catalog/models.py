@@ -135,12 +135,18 @@ class ProductVariant(UUIDModel, TimeStampedModel):
         # No default ordering: sorting by size__sort_order would join two tables on
         # every variant read, including every prefetch.
         constraints = [
-            # NULLS NOT DISTINCT (PostgreSQL 15+) so a nullable shade cannot let a
-            # product hold two shadeless variants of one size (ADR 0010).
+            # Two partial constraints so a nullable shade cannot let a product hold two
+            # shadeless variants of one size (ADR 0010). Not NULLS NOT DISTINCT: that
+            # needs PostgreSQL 15 and production runs 13 (ADR 0021).
             models.UniqueConstraint(
                 fields=["product", "size", "shade"],
+                condition=models.Q(shade__isnull=False),
                 name="product_variant_unique_product_size_shade",
-                nulls_distinct=False,
+            ),
+            models.UniqueConstraint(
+                fields=["product", "size"],
+                condition=models.Q(shade__isnull=True),
+                name="product_variant_unique_product_size_shadeless",
             ),
             models.CheckConstraint(
                 condition=models.Q(stock_quantity__gte=0),

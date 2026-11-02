@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "TrueLux cosmetics store backend API (Django 5 + DRF)."
 requires-python = ">=3.12"
 dependencies = [
-    "django>=5.1,<6.0",
+    "django>=5.1,<5.2",
     "djangorestframework>=3.15",
     "djangorestframework-simplejwt>=5.3",
     "drf-spectacular>=0.27",
