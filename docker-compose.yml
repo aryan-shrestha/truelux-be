@@ -1,8 +1,8 @@
-# Local Postgres only; deployment is Render. Published on 5433 so it does not
-# collide with a Postgres already installed on the host.
+# Local Postgres only. 13 because production runs 13 (ADR 0021). Published on 5433
+# so it does not collide with a Postgres already installed on the host.
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:13-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

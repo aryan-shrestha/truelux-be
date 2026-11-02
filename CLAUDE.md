@@ -14,9 +14,9 @@ serves the public storefront (guest checkout, cash on delivery only) and the sta
 admin app (`/api/v1/admin/`, JWT).
 
 - Python 3.12+
-- Django 5.x
+- Django 5.1, pinned: production's PostgreSQL 13 rules out 5.2 (ADR 0021)
 - Django REST Framework
-- PostgreSQL 15+ with psycopg 3 (`NULLS NOT DISTINCT` is used; Supabase in production)
+- PostgreSQL 13+ with psycopg 3; production runs 13, so nothing may rely on a 14+ feature
 - No Redis: the cache, and so the throttle counters, is Django's `DatabaseCache` (ADR 0014).
 - There is **no Celery or task queue**. Do not add, stub, or introduce one.
 - `uv` manages dependencies, the virtual environment, and command execution.

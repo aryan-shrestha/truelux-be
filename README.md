@@ -14,14 +14,14 @@ Read [`CLAUDE.md`](CLAUDE.md) before your first change, then
 
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/): the virtualenv, dependencies and command runner
-- PostgreSQL 15+ (`docker compose up -d` gives you 16 on port **5433**)
+- PostgreSQL 13+ (`docker compose up -d` gives you 13, production's version, on port **5433**)
 
 There is no `requirements.txt`; pip and Poetry are not used.
 
 ## From clone to a running server
 
 ```bash
-docker compose up -d        # Postgres 16 on localhost:5433, database "truelux"
+docker compose up -d        # Postgres 13 on localhost:5433, database "truelux"
 cp .env.example .env        # fill the four blanks: secret key (32+ chars) and the three
                             # Cloudinary values (any placeholder works locally)
 

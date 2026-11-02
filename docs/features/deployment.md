@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-29
+Last updated: 2026-11-02
 
 ---
 
@@ -33,7 +33,7 @@ What is explicitly outside the scope?
 
 ## Context
 
-Supabase (Postgres 15+, required for `NULLS NOT DISTINCT`), Render and Cloudinary
+Supabase (Postgres 13+; ADR 0021), Render and Cloudinary
 are the only services. ADR 0008 requires every variable, and two tests keep
 `render.yaml`, `.env.example` and `base.py` in step.
 
@@ -56,8 +56,8 @@ are the only services. ADR 0008 requires every variable, and two tests keep
 - `DATABASE_SCHEMA` — every table lives in this schema on both connections, set as
   the libpq startup parameter `-c search_path=<schema>` in `base.py`. It must be a
   lowercase unquoted identifier. `.env.example` and the test settings use `public`.
-- `docker-compose.yml` — local Postgres 16 only, published on host port 5433.
-- `.github/workflows/ci.yml` — Postgres 16 service, `make lint`, `make typecheck`,
+- `docker-compose.yml` — local Postgres 13 only, published on host port 5433.
+- `.github/workflows/ci.yml` — Postgres 13 service, `make lint`, `make typecheck`,
   `make test`, `makemigrations --check --dry-run`.
 - Demo data on deploy (ADR 0015): with `SEED_DEMO_DATA` true, the first build of an
   empty database creates the demo staff login, the catalogue (images uploaded to
@@ -154,8 +154,10 @@ silently; the app needs no extension, and `gen_random_uuid` is in `pg_catalog`.
   mid-checkout. `render.yaml` therefore sets `EMAIL_PORT=2587`, Resend's alternate
   STARTTLS port (Resend has no 2525). An existing service keeps its old value until
   the Blueprint is re-synced or the variable is edited in the dashboard.
-- Locally, a Homebrew Postgres on 5432 would shadow the container and is too old
-  (14) for `NULLS NOT DISTINCT`; that is why compose uses 5433.
+- Locally, compose publishes on 5433 so a Homebrew Postgres on 5432 cannot shadow
+  the container and run the suite on a version production does not.
+- Compose moved from Postgres 16 to 13 (ADR 0021). A volume created by 16 will not
+  start under 13: `docker compose down -v` discards it, and its data.
 
 ---
 
