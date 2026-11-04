@@ -2,7 +2,7 @@
 DJANGO_SETTINGS_MODULE ?= config.settings.dev
 MANAGE := uv run python manage.py
 
-.PHONY: help install run test lint format typecheck migrate makemigrations seed reseed seed-staff catalogue-template catalogue-export catalogue-import shell superuser check
+.PHONY: help install run test lint format typecheck migrate makemigrations seed reseed seed-staff catalogue-template catalogue-export catalogue-import shell superuser check deploy
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -66,3 +66,19 @@ superuser: ## Create a superuser
 
 check: ## Run Django system checks
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(MANAGE) check
+
+# On the cPanel host only (docs/features/deployment.md). Passenger runs the virtualenv
+# cPanel's "Setup Python App" created, so uv syncs into that active environment
+# rather than into .venv, and every command after the sync must not re-sync it.
+DEPLOY_MANAGE := DJANGO_SETTINGS_MODULE=config.settings.production uv run --active --no-sync python manage.py
+
+deploy: ## On the cPanel host, inside the app's virtualenv: install, migrate, seed, collect static, restart
+	@test -n "$$VIRTUAL_ENV" -a "$$VIRTUAL_ENV" != "$(CURDIR)/.venv" || (echo 'Activate the cPanel app virtualenv first: source ~/virtualenv/<app root>/3.12/bin/activate' && exit 2)
+	uv sync --active --frozen --no-dev
+	$(DEPLOY_MANAGE) migrate --database=direct
+	$(DEPLOY_MANAGE) createcachetable --database=direct
+	$(DEPLOY_MANAGE) seed_staff --deploy
+	$(DEPLOY_MANAGE) seed_demo --deploy
+	$(DEPLOY_MANAGE) seed_orders --deploy
+	$(DEPLOY_MANAGE) collectstatic --noinput
+	mkdir -p tmp && touch tmp/restart.txt

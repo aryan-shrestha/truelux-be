@@ -328,6 +328,66 @@ def test_the_blueprint_seeds_demo_data_after_the_cache_table():
     assert positions == sorted(positions)
 
 
+def _deploy_recipe() -> list[str]:
+    source = (BASE_DIR / "Makefile").read_text()
+    recipe = re.search(r"^deploy:.*\n((?:\t.*\n?)+)", source, re.M)
+    assert recipe, "the Makefile has no deploy target"
+    return [line.strip() for line in recipe.group(1).splitlines()]
+
+
+def test_the_cpanel_deploy_runs_the_build_steps_in_order():
+    # The Render build's order, for the same reasons: the cache table before the
+    # seeds (ADR 0014, 0015), and Passenger restarted only once the release is ready.
+    recipe = _deploy_recipe()
+    steps = [
+        "uv sync --active --frozen --no-dev",
+        "migrate --database=direct",
+        "createcachetable --database=direct",
+        "seed_staff --deploy",
+        "seed_demo --deploy",
+        "seed_orders --deploy",
+        "collectstatic --noinput",
+        "touch tmp/restart.txt",
+    ]
+    positions = [next(i for i, line in enumerate(recipe) if step in line) for step in steps]
+    assert positions == sorted(positions)
+
+
+def test_the_cpanel_deploy_runs_manage_py_under_production_settings():
+    # manage.py falls back to `dev`, whose collectstatic writes no manifest.
+    source = (BASE_DIR / "Makefile").read_text()
+    assert re.search(
+        r"^DEPLOY_MANAGE := DJANGO_SETTINGS_MODULE=config\.settings\.production "
+        r"uv run --active --no-sync python manage\.py$",
+        source,
+        re.M,
+    )
+    managed = [line for line in _deploy_recipe() if "manage" in line.lower()]
+    assert managed
+    assert all(line.startswith("$(DEPLOY_MANAGE) ") for line in managed)
+
+
+def test_passenger_serves_the_wsgi_application():
+    import config.wsgi
+    import passenger_wsgi
+
+    assert passenger_wsgi.application is config.wsgi.application
+
+
+@pytest.mark.parametrize("alias", ["default", "direct"])
+def test_the_database_url_may_turn_tls_off(clean_env, alias):
+    # The cPanel host's Postgres is on localhost and may not offer TLS, which the
+    # `require` default would refuse. A URL's own sslmode wins over the default.
+    clean_env.setenv(
+        "DATABASE_URL" if alias == "default" else "DATABASE_DIRECT_URL",
+        "postgres://u:p@localhost:5432/truelux?sslmode=disable",
+    )
+
+    settings = _reload("config.settings.base")
+
+    assert settings.DATABASES[alias]["OPTIONS"]["sslmode"] == "disable"
+
+
 def test_seed_demo_data_is_read_as_a_flag(clean_env):
     clean_env.setenv("SEED_DEMO_DATA", "true")
 

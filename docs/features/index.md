@@ -21,7 +21,7 @@ Redis were removed at the fork.
 | 9   | transactional-email | Implemented | `features/transactional-email.md` | 6          | 2026-09-29   |
 | 10  | merchant-admin      | Implemented | `features/merchant-admin.md`      | 4, 6, 8    | 2026-09-25   |
 | 11  | demo-seed           | Implemented | `features/demo-seed.md`           | 4, 6, 8, 16, 17 | 2026-09-29 |
-| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-11-02   |
+| 12  | deployment          | Implemented | `features/deployment.md`          | —          | 2026-11-04   |
 | 13  | brands              | Implemented | `features/brands.md`              | 4, 5       | 2026-09-26   |
 | 14  | shades-and-sizes    | Implemented | `features/shades-and-sizes.md`    | 4, 5, 6    | 2026-11-02   |
 | 15  | staff-auth          | Implemented | `features/staff-auth.md`          | 1          | 2026-10-11   |
@@ -66,8 +66,13 @@ Redis were removed at the fork.
 - **PostgreSQL 13 and Django 5.1** (ADR 0021). The client's cPanel host runs
   PostgreSQL 13, so Django is pinned below 5.2 and the variant uniqueness rule is two
   partial constraints (migration `catalog/0004`). Compose and CI run 13.
-- **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, the Render
-  build fills an empty database with the demo catalogue, orders and staff login.
+- **The API moves to the client's cPanel host** (ADR 0022). Passenger loads
+  `passenger_wsgi.py`; over SSH, `make deploy` syncs `uv.lock` into cPanel's
+  virtualenv, migrates, seeds and restarts. `dev.api.trueluxnepal.com` is the first
+  environment. Render remains until cPanel is live.
+- **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, `make
+  deploy` (or the Render build) fills an empty database with the demo catalogue,
+  orders and staff login.
 
 ## Contracts with the front-end apps
 
@@ -112,6 +117,7 @@ Redis were removed at the fork.
 | 0019 | Stock changes are a ledger in the inventory app | inventory, checkout, orders, admin-api |
 | 0020 | The admin app keeps JWT in browser storage      | staff-auth, admin-api, deployment     |
 | 0021 | Production runs PostgreSQL 13, so Django stays on 5.1 | shades-and-sizes, deployment, every dependency |
+| 0022 | The API runs under Passenger on the cPanel host | deployment                            |
 
 ## Deferred
 

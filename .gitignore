@@ -16,3 +16,5 @@ media/
 .env.production
 # Catalogue workbooks carry the client's data.
 *.xlsx
+# Passenger restarts the app when tmp/restart.txt is touched (make deploy).
+tmp/

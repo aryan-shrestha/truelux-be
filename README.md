@@ -97,7 +97,11 @@ Every failure returns `{"error": {"code", "message", "details"}}`.
 
 ## Deployment
 
-Render, as the native Python service `truelux-api` described by `render.yaml`:
-build runs `uv sync --frozen`, `migrate`, `createcachetable` and `collectstatic`;
-Supabase Postgres and Cloudinary are the only other services. See
-[`docs/features/deployment.md`](docs/features/deployment.md).
+The client's cPanel host, under Passenger (ADR 0022): over SSH, with the app's
+virtualenv active, `git pull && make deploy` syncs `uv.lock` into that virtualenv,
+migrates, creates the cache table, seeds a demo when asked, collects static files
+and restarts the app. The host's PostgreSQL 13 and Cloudinary are the only other
+services. `dev.api.trueluxnepal.com` is the first environment.
+
+Render (`render.yaml`, against Supabase) remains until the cPanel deployment is
+live. See [`docs/features/deployment.md`](docs/features/deployment.md).
