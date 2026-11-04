@@ -133,7 +133,7 @@ the example:
 | `DJANGO_CORS_ALLOWED_ORIGINS`, `DJANGO_CSRF_TRUSTED_ORIGINS` | Dev: `https://dev.trueluxnepal.com,https://dev.admin.trueluxnepal.com`. Production: `https://trueluxnepal.com,https://www.trueluxnepal.com,https://admin.trueluxnepal.com` |
 | `STOREFRONT_URL` | Dev: `https://dev.trueluxnepal.com`. Production: `https://trueluxnepal.com` |
 | `DJANGO_EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` |
-| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS` | The mailbox's outgoing server, `587`, `True` |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS` | `cpcloud.himalayan.host` (the server's host name, which its certificate names), `587`, `True`. Never `465`: see Gotchas |
 | `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | The mailbox's address and password |
 | `DJANGO_DEFAULT_FROM_EMAIL` | The mailbox's address |
 | `SEED_DEMO_DATA` | `true` for the demo, `false` for production before its first deploy |
@@ -163,19 +163,14 @@ app fails at import.
 
 ## Remaining
 
-- **Dev is deployed and was reported working on 2026-11-04. Production is not
-  deployed yet.**
-- **Not recorded from the dev deploy**, so check again on production:
-  - That `https://` requests are not redirected. Passenger must tell Django the
-    request was secure, through `X-Forwarded-Proto` or the WSGI scheme; if neither
-    does, every request redirects to itself.
-  - Whether the host's PostgreSQL accepts TLS, which decides `?sslmode=disable`.
-  - That the mail server offers STARTTLS on 587. The settings have no
-    `EMAIL_USE_SSL`, so a host that offers only 465 needs a code change.
-  - Where Passenger writes the app's stderr, which is where every log line and
-    every 500 goes.
-  - That `make` exists in the SSH shell. Without it, run the recipe's lines by
-    hand (`make -n deploy` prints them).
+- **Dev and production are live since 2026-11-04**, and transactional email is
+  delivered. Observed on production that day: `https://` serves `/health/ready/`
+  as ready with database and cache ok, `http://` redirects with a 301, and `/.env`
+  is refused with a 403.
+- **Deploys are manual.** Automatic deployment is the next piece of work; it
+  amends ADR 0022.
+- **Not recorded:** whether the database URLs needed `?sslmode=disable`, and
+  where Passenger writes the app's stderr.
 - **Dev and production share one Cloudinary folder** (`PREFIX = "truelux"`) if
   they use the same Cloudinary account, so demo and real images sit side by side.
 - **Remove Render** (suspended): `render.yaml`, the
@@ -253,6 +248,28 @@ schema it lives in.
   whatever a laptop's `.env` points at.
 - cPanel's "Run pip install" button is not part of this deploy; `uv.lock` is the
   only dependency list.
+- **Every other `make` target is for a laptop.** On the server, plain `make
+  superuser` (or `shell`, `seed`, …) runs `uv run` against a new `.venv` with
+  `config.settings.dev`. Override both:
+  `make <target> DJANGO_SETTINGS_MODULE=config.settings.production MANAGE="uv run --active --no-sync python manage.py"`.
+  `make seed` and `make reseed` do not belong on the server at all.
+- **`EMAIL_PORT=465` with `EMAIL_USE_TLS=True` hangs.** 465 expects TLS from the
+  first byte and STARTTLS waits for a plaintext greeting, so each send waits out
+  `EMAIL_TIMEOUT` and logs `email.send_failed` with `SMTPServerDisconnected:
+  Connection unexpectedly closed: timed out`, and every checkout takes that much
+  longer. Use 587.
+- **DNS is on Cloudflare, not cPanel**, so cPanel creates no records for a new
+  subdomain or mailbox, and AutoSSL reports "No local authority". Add the `A`
+  record (DNS only) in Cloudflare before running AutoSSL. A device that looked
+  the name up before the record existed caches the failure for up to 30 minutes
+  (the zone's negative TTL).
+- **Outbound mail leaves through MailBaby**, the host's relay, so the one SPF record
+  must keep `include:spf-c.mailbaby.net`; cPanel's *Email Deliverability* shows
+  the record to use. A second SPF record breaks SPF entirely. DKIM
+  (`default._domainkey`), DMARC, MX and `mail` are in Cloudflare too. The
+  subdomains' "Problems exist" there is expected: nothing sends from them.
+- The web server is LiteSpeed. It refuses every path starting with a dot, with
+  403, whatever the app root.
 - `make deploy`'s `manage.py` calls use `--no-sync`: a plain `uv run` would install
   the dev group back into the virtualenv.
 - `DJANGO_CORS_ALLOWED_ORIGINS` may be empty and boots cleanly, but then the

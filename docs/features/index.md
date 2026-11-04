@@ -85,9 +85,9 @@ Redis were removed at the fork.
 
 ## Not done
 
-- **Production is not deployed yet.** Dev runs on the cPanel host and was reported
-  working on 2026-11-04.
-- **No email has been seen in a real client**, and no SMTP relay is configured.
+- **Deploys are manual.** Dev and production have run on the cPanel host since
+  2026-11-04, each deployed over SSH with `make deploy`; automatic deployment is
+  next.
 - The standing duties with no automatic recovery (confirming or cancelling pending
   orders so stock is released, resending failed email) are in
   [../handover.md](../handover.md).
