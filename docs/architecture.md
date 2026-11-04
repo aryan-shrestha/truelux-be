@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-09-26
+Last updated: 2026-11-04
 
 This document describes the current architecture of the system.
 
@@ -21,13 +21,13 @@ outside the running container.
 Storefront (browser)      Admin app (browser)
           ↘                  ↙
 
-Render (TLS termination, HTTP proxy)
+cPanel host: web server (TLS) → Passenger      (Render → gunicorn, until cPanel is live)
   ↓
-Gunicorn / Django / DRF
+Django / DRF
   ↓
 Domain apps (views → services / selectors)
   ↓
-Supabase PostgreSQL          Cloudinary
+PostgreSQL 13 on the host    Cloudinary       (Supabase on Render)
  ├── domain tables             └── image assets
  └── django_cache (throttle counters, ADR 0014)
 ```
@@ -41,8 +41,10 @@ Three properties define this architecture:
   the Django admin. There is no customer-facing upload endpoint.
 - **There is no task queue.** Every unit of work completes inside the request that
   started it.
-- **The database is external and pooled.** Connections traverse Supabase's pooler,
-  which constrains how Django may use them (see External systems).
+- **The settings assume a pooled database.** On Render, connections traverse
+  Supabase's pooler, which constrains how Django may use them (see External
+  systems). The cPanel host's PostgreSQL is local and unpooled; the same settings
+  run against it unchanged.
 
 ---
 
@@ -345,13 +347,19 @@ StockMovement             (apps/inventory, ADR 0019)
 | ------------------- | ------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Supabase PostgreSQL | Primary database, the only source of truth | Django ORM over `DATABASE_URL`; migrations over `DATABASE_DIRECT_URL`; both in the `DATABASE_SCHEMA` schema | Runtime uses the pooler; migrations need the direct connection. Pooled connections forbid server-side cursors and prepared statements, so both are disabled. TLS required. |
 | Cloudinary          | Storage and CDN delivery of user images    | Django `STORAGES["default"]` via `cloudinary-storage`; `ImageField` | Upload is synchronous and inside the request. Deleting a row does not delete the asset. Delivery URLs are public.                                                                          |
-| Render              | Hosting, TLS, deploys                      | Native Python service (`render.yaml`); gunicorn; uv from `uv.lock`  | Ephemeral filesystem. TLS terminates at the proxy, so Django must trust `X-Forwarded-Proto`. No scheduler, and the free instance sleeps when idle.                                         |
+| cPanel host         | Hosting, TLS, PostgreSQL 13, SMTP          | Passenger loads `passenger_wsgi.py`; `make deploy` over SSH syncs `uv.lock` into cPanel's virtualenv (ADR 0022) | Manual deploys. Passenger, not the repository, decides process count and request timeout. Local PostgreSQL, one database per environment, schema `public`. No platform health check. |
+| Render              | Hosting, TLS, deploys, until cPanel is live | Native Python service (`render.yaml`); gunicorn; uv from `uv.lock`  | Ephemeral filesystem. TLS terminates at the proxy, so Django must trust `X-Forwarded-Proto`. No scheduler, and the free instance sleeps when idle.                                         |
 
 **Supabase usage is limited to Postgres.** Storage, Realtime, Edge Functions, and
 the Supabase client libraries are not used. Images are Cloudinary's job; adding a
 second object store would split ownership of the same concern.
 
-**Deployment shape.** A native Python service, described by `render.yaml` rather
+**Deployment shape on cPanel** (ADR 0022). One Passenger app per environment, each
+with its own database and its own `.env` in the app root, which Passenger and the
+SSH commands both read. `make deploy` is the build: it runs the Render build's
+steps in the same order inside cPanel's virtualenv, then restarts Passenger.
+
+**Deployment shape on Render**, until cPanel is live. A native Python service, described by `render.yaml` rather
 than by a dashboard. The build installs from `uv.lock`, migrates, creates
 the cache table, and collects static files, which WhiteNoise then serves. All configuration arrives as
 environment variables, and the blueprint is the only place the production set is
@@ -360,8 +368,9 @@ written down — two tests in `tests/test_settings.py` keep it in step with
 builds and then fails at import. See
 [features/deployment.md](features/deployment.md).
 
-**Migrations run once per deploy, in the build command**, never at application
-boot, so two starting instances cannot race each other. Render's
+**Migrations run once per deploy, in the build command** (`make deploy` on
+cPanel), never at application boot, so two starting instances cannot race each
+other. Render's
 `preDeployCommand` is the better home and needs a paid instance type; the build
 command runs exactly once per deploy too, so the race is still excluded. What it
 does not give is ordering against a failed release: migrations apply before the

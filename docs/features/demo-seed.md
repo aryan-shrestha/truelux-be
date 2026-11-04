@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-29
+Last updated: 2026-11-04
 
 ---
 
@@ -20,8 +20,8 @@ What is included in this implementation?
 - `make seed`: `seed_demo` (catalogue) then `seed_orders` (orders)
 - `make reseed`: flush orders, flush and reseed the catalogue, reseed orders
 - `make seed-staff`: the demo staff user (see `staff-auth.md`)
-- `--deploy` on all three commands, which the Render build runs so a fresh demo
-  deploy gets the same data (ADR 0015)
+- `--deploy` on all three commands, which `make deploy` on cPanel and the Render
+  build run so a fresh demo deploy gets the same data (ADR 0015)
 
 What is explicitly outside the scope?
 
@@ -89,8 +89,8 @@ What is explicitly outside the scope?
   `seed_demo --deploy` seeds only when there are no brands, categories or products;
   `seed_orders --deploy` only when there are no orders and every product is a
   seeded one, and sends its email to the dummy backend. Images go through the
-  default storage, so on Render they land in Cloudinary. `render.yaml` runs all
-  three after `createcachetable`.
+  default storage, so deployed they land in Cloudinary. `make deploy` and
+  `render.yaml` run all three after `createcachetable`.
 
 ---
 

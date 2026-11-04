@@ -694,9 +694,9 @@ a bug.
 `DJANGO_SETTINGS_MODULE`, which Django reads before any settings module loads, so
 no settings file can require or validate it. `manage.py` and `config/wsgi.py` fall
 back to `local` and `production` respectively; the Makefile passes `local`;
-pytest-django passes `test`. `render.yaml` sets it to `production` because the
-build runs `manage.py`, whose `local` fallback would collect static files without
-a manifest. It is listed in `.env.example` only so the blueprint guard accepts it —
+pytest-django passes `test`. `render.yaml` and `make deploy` set it to
+`production` because the build runs `manage.py`, whose `local` fallback would
+collect static files without a manifest. It is listed in `.env.example` only so the blueprint guard accepts it —
 the value in `.env` is never honoured, because `read_env` runs inside `base.py`.
 
 `ENV_FILE`, read with `os.environ.get` at the top of `base.py`, names the file
