@@ -101,7 +101,8 @@ The client's cPanel host, under Passenger (ADR 0022): over SSH, with the app's
 virtualenv active, `git pull && make deploy` syncs `uv.lock` into that virtualenv,
 migrates, creates the cache table, seeds a demo when asked, collects static files
 and restarts the app. The host's PostgreSQL 13 and Cloudinary are the only other
-services. `dev.api.trueluxnepal.com` is the first environment.
+services. Dev is `dev.api.trueluxnepal.com` from `dev`; production is
+`api.trueluxnepal.com` from `main`.
 
-Render (`render.yaml`, against Supabase) remains until the cPanel deployment is
-live. See [`docs/features/deployment.md`](docs/features/deployment.md).
+Render (`render.yaml`, against Supabase) is suspended and its configuration not yet
+removed. See [`docs/features/deployment.md`](docs/features/deployment.md).

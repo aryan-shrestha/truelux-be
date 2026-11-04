@@ -11,11 +11,15 @@ Last updated: 2026-11-04
 Run the TrueLux API on the client's cPanel shared host under Passenger, against the
 host's PostgreSQL 13 and Cloudinary, one app per environment
 ([ADR 0022](../decisions/0022-the-api-runs-under-passenger-on-the-cpanel-host.md)).
-The first environment is `dev.api.trueluxnepal.com`, a demo; production follows as
-a second app with its own database.
+Two environments, each its own app and database on the same cPanel account:
 
-Render (`render.yaml`, against Supabase) stays described below until the cPanel
-deployment is live, and is then removed.
+| Environment | API | Branch | App root | Data |
+| --- | --- | --- | --- | --- |
+| Dev | `dev.api.trueluxnepal.com` | `dev` | `~/truelux-api-dev` | Demo, seeded on deploy |
+| Production | `api.trueluxnepal.com` | `main` | `~/truelux-api-prod` | Real; catalogue imported from the workbook |
+
+Render (`render.yaml`, against Supabase) is suspended. Its configuration stays in
+the repository until it is removed.
 
 ---
 
@@ -97,9 +101,9 @@ for example `truelux-api-dev`.
 4. **uv.** Over SSH: `curl -LsSf https://astral.sh/uv/install.sh | sh`, which
    installs to `~/.local/bin`.
 5. **Code.** Clone the repository into `~/<app>` and check out the environment's
-   branch (`dev` for the demo). A private repository needs a read-only deploy key:
+   branch (`dev` or `main`). A private repository needs a read-only deploy key:
    `ssh-keygen -t ed25519` on the host, the public key added under the GitHub
-   repository's *Deploy keys*.
+   repository's *Deploy keys*. One key serves every app on the account.
 6. **Python app.** *Setup Python App* → *Create*: Python 3.12, application root
    `<app>`, application URL the subdomain, startup file `passenger_wsgi.py`, entry
    point `application`. **The application root must be outside every document
@@ -125,14 +129,15 @@ the example:
 | `DATABASE_URL`, `DATABASE_DIRECT_URL` | The same URL: `postgres://<user>:<password>@localhost:5432/<database>`. Add `?sslmode=disable` if the server refuses TLS |
 | `DATABASE_SCHEMA` | `public` |
 | `DJANGO_SECRET_KEY` | A new random value per environment |
-| `DJANGO_ALLOWED_HOSTS` | Dev: `dev.api.trueluxnepal.com`. Production: the API's host name |
-| `DJANGO_CORS_ALLOWED_ORIGINS`, `DJANGO_CSRF_TRUSTED_ORIGINS` | Dev: `https://dev.trueluxnepal.com,https://dev.admin.trueluxnepal.com`. Production: `https://trueluxnepal.com,https://admin.trueluxnepal.com` |
+| `DJANGO_ALLOWED_HOSTS` | Dev: `dev.api.trueluxnepal.com`. Production: `api.trueluxnepal.com` |
+| `DJANGO_CORS_ALLOWED_ORIGINS`, `DJANGO_CSRF_TRUSTED_ORIGINS` | Dev: `https://dev.trueluxnepal.com,https://dev.admin.trueluxnepal.com`. Production: `https://trueluxnepal.com,https://www.trueluxnepal.com,https://admin.trueluxnepal.com` |
 | `STOREFRONT_URL` | Dev: `https://dev.trueluxnepal.com`. Production: `https://trueluxnepal.com` |
 | `DJANGO_EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS` | The mailbox's outgoing server, `587`, `True` |
 | `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | The mailbox's address and password |
 | `DJANGO_DEFAULT_FROM_EMAIL` | The mailbox's address |
 | `SEED_DEMO_DATA` | `true` for the demo, `false` for production before its first deploy |
+| `DEMO_STAFF_EMAIL`, `DEMO_STAFF_PASSWORD` in production | Still required (ADR 0008), never used while `SEED_DEMO_DATA` is false |
 | `DEMO_STAFF_EMAIL`, `DEMO_STAFF_PASSWORD` | The demo's admin login; the password at least 12 characters |
 
 The rest take the values `render.yaml` sets: `DJANGO_DEBUG=False`,
@@ -158,11 +163,9 @@ app fails at import.
 
 ## Remaining
 
-- **Nothing has been deployed to cPanel or to Render.** `make deploy` and
-  `passenger_wsgi.py` are verified by the tests and by a local rehearsal (a fresh
-  Python 3.12 virtualenv synced with `uv sync --active`, the startup file loaded
-  from another directory), not on the host.
-- **To observe on the first cPanel deploy:**
+- **Dev is deployed and was reported working on 2026-11-04. Production is not
+  deployed yet.**
+- **Not recorded from the dev deploy**, so check again on production:
   - That `https://` requests are not redirected. Passenger must tell Django the
     request was secure, through `X-Forwarded-Proto` or the WSGI scheme; if neither
     does, every request redirects to itself.
@@ -173,10 +176,9 @@ app fails at import.
     every 500 goes.
   - That `make` exists in the SSH shell. Without it, run the recipe's lines by
     hand (`make -n deploy` prints them).
-- **Production's API host name is not decided.** A CORS origin is matched exactly,
-  so if the storefront is also served on `www.trueluxnepal.com`, that origin must
-  be listed too.
-- **Remove Render once cPanel is live**: `render.yaml`, the
+- **Dev and production share one Cloudinary folder** (`PREFIX = "truelux"`) if
+  they use the same Cloudinary account, so demo and real images sit side by side.
+- **Remove Render** (suspended): `render.yaml`, the
   `RENDER_EXTERNAL_HOSTNAME` append and its tests, and the blueprint tests in
   `tests/test_settings.py`, whose parity checks then need `.env.example` as their
   reference. Revisit `SECURE_PROXY_SSL_HEADER` then too: without a proxy in front

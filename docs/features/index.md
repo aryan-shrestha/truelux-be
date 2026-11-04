@@ -68,8 +68,8 @@ Redis were removed at the fork.
   partial constraints (migration `catalog/0004`). Compose and CI run 13.
 - **The API moves to the client's cPanel host** (ADR 0022). Passenger loads
   `passenger_wsgi.py`; over SSH, `make deploy` syncs `uv.lock` into cPanel's
-  virtualenv, migrates, seeds and restarts. `dev.api.trueluxnepal.com` is the first
-  environment. Render remains until cPanel is live.
+  virtualenv, migrates, seeds and restarts. Dev is `dev.api.trueluxnepal.com` from
+  `dev`, production `api.trueluxnepal.com` from `main`. Render is suspended.
 - **A demo deploy seeds itself** (ADR 0015). With `SEED_DEMO_DATA` true, `make
   deploy` (or the Render build) fills an empty database with the demo catalogue,
   orders and staff login.
@@ -85,8 +85,8 @@ Redis were removed at the fork.
 
 ## Not done
 
-- **Nothing has been deployed as TrueLux.** Every claim rests on the test suite and
-  a local run.
+- **Production is not deployed yet.** Dev runs on the cPanel host and was reported
+  working on 2026-11-04.
 - **No email has been seen in a real client**, and no SMTP relay is configured.
 - The standing duties with no automatic recovery (confirming or cancelling pending
   orders so stock is released, resending failed email) are in
