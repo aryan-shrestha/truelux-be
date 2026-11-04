@@ -25,6 +25,7 @@ from apps.catalog.models import (
     SkinType,
 )
 from apps.catalog.selectors import PRODUCT_ON_SALE
+from apps.inventory.models import StockMovement
 from apps.orders.constants import OrderStatus
 from apps.orders.models import Order
 
@@ -98,6 +99,10 @@ def list_orders() -> QuerySet[Order]:
 
 def get_order(*, order_id: UUID) -> Order:
     return Order.objects.prefetch_related("items").get(pk=order_id)
+
+
+def list_stock_movements() -> QuerySet[StockMovement]:
+    return StockMovement.objects.select_related("order", "actor").order_by("-created_at", "pk")
 
 
 def start_of_shop_day(day: date) -> datetime:

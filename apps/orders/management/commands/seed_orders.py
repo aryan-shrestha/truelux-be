@@ -228,7 +228,7 @@ class Command(BaseCommand):
         payment = record_cod_payment(order=order)
 
         for status in _PATH_TO[spec.status]:
-            order = transition_order(order=order, to=status)
+            order = transition_order(order=order, to=status, actor=None)
         if spec.status == OrderStatus.DELIVERED:
             complete_cod_payment(payment=payment)
 

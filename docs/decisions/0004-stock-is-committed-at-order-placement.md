@@ -6,6 +6,10 @@ Date: 2026-09-20
 
 Supersedes: None
 
+Amended by [ADR 0019](0019-stock-changes-are-a-ledger-in-the-inventory-app.md): the
+stock services moved to `apps/inventory/services.py`, and every decrement and
+restore records a `StockMovement`. The locking rules here are unchanged.
+
 ---
 
 ## Context

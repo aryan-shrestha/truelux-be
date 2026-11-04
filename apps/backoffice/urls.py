@@ -25,6 +25,14 @@ urlpatterns = [
         views.VariantDetailView.as_view(),
         name="admin-variant-detail",
     ),
+    path(
+        "variants/<uuid:variant_id>/stock-adjustments/",
+        views.VariantStockAdjustmentView.as_view(),
+        name="admin-variant-stock-adjustments",
+    ),
+    path(
+        "stock-movements/", views.StockMovementListView.as_view(), name="admin-stock-movement-list"
+    ),
     path("images/<uuid:image_id>/", views.ImageDetailView.as_view(), name="admin-image-detail"),
     path("brands/", views.BrandListView.as_view(), name="admin-brand-list"),
     path("brands/<uuid:entry_id>/", views.BrandDetailView.as_view(), name="admin-brand-detail"),

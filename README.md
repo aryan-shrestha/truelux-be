@@ -14,14 +14,14 @@ Read [`CLAUDE.md`](CLAUDE.md) before your first change, then
 
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/): the virtualenv, dependencies and command runner
-- PostgreSQL 15+ (`docker compose up -d` gives you 16 on port **5433**)
+- PostgreSQL 13+ (`docker compose up -d` gives you 13, production's version, on port **5433**)
 
 There is no `requirements.txt`; pip and Poetry are not used.
 
 ## From clone to a running server
 
 ```bash
-docker compose up -d        # Postgres 16 on localhost:5433, database "truelux"
+docker compose up -d        # Postgres 13 on localhost:5433, database "truelux"
 cp .env.example .env        # fill the four blanks: secret key (32+ chars) and the three
                             # Cloudinary values (any placeholder works locally)
 
@@ -97,7 +97,12 @@ Every failure returns `{"error": {"code", "message", "details"}}`.
 
 ## Deployment
 
-Render, as the native Python service `truelux-api` described by `render.yaml`:
-build runs `uv sync --frozen`, `migrate`, `createcachetable` and `collectstatic`;
-Supabase Postgres and Cloudinary are the only other services. See
-[`docs/features/deployment.md`](docs/features/deployment.md).
+The client's cPanel host, under Passenger (ADR 0022): over SSH, with the app's
+virtualenv active, `git pull && make deploy` syncs `uv.lock` into that virtualenv,
+migrates, creates the cache table, seeds a demo when asked, collects static files
+and restarts the app. The host's PostgreSQL 13 and Cloudinary are the only other
+services. Dev is `dev.api.trueluxnepal.com` from `dev`; production is
+`api.trueluxnepal.com` from `main`.
+
+Render (`render.yaml`, against Supabase) is suspended and its configuration not yet
+removed. See [`docs/features/deployment.md`](docs/features/deployment.md).

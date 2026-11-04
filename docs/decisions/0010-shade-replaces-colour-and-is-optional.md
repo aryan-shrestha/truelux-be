@@ -1,6 +1,8 @@
 # ADR 0010: Shade replaces colour, and shade is optional
 
-Status: Accepted
+Status: Accepted. The `NULLS NOT DISTINCT` constraint is superseded by
+[ADR 0021](0021-production-runs-postgresql-13-so-django-stays-on-5-1.md), which keeps
+the same guarantee with two partial unique constraints.
 
 Date: 2026-09-25
 
@@ -56,7 +58,7 @@ filter would offer a meaningless option.
 
 ### Constraints introduced
 
-- Requires PostgreSQL 15 or later for `NULLS NOT DISTINCT`.
+- Requires PostgreSQL 15 or later for `NULLS NOT DISTINCT` (lifted by ADR 0021).
 
 ---
 

@@ -78,7 +78,7 @@ model rather than a product attribute. The filter follows the existing
   every product item; `BrandSerializer` for the brand endpoints.
 - `apps/catalog/views.py`, `urls.py` — `BrandViewSet` (read-only, slug lookup,
   `AllowAny`, `catalog` throttle scope, unpaginated), registered as `brands`.
-- `apps/catalog/services/stock.py` — `decrement_variant_stock` treats a variant whose brand
+- `apps/inventory/services.py` — `decrement_variant_stock` treats a variant whose brand
   is inactive exactly like an unpublished one: `422 variant_unavailable` at checkout.
 - `apps/catalog/admin.py` — `BrandAdmin`; `ProductAdmin` lists and filters by brand.
 - `apps/catalog/management/commands/seed_demo.py` — 24 real Korean brands, each with
@@ -205,7 +205,7 @@ apps/catalog/
 ├── serializers.py
 ├── views.py
 ├── urls.py
-├── services/stock.py
+├── services/products.py
 ├── admin.py
 └── tests/test_brands.py
 ```

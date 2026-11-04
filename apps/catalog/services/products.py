@@ -7,8 +7,9 @@ from django.db import transaction
 from apps.catalog.exceptions import CompareAtNotAbovePrice, ProductHasNoVariants
 from apps.catalog.models import Product, ProductImage, ProductVariant, SkinType
 from apps.catalog.services._writes import assign_fields, fill_missing_slug
-from apps.catalog.services.stock import set_variant_stock
 from apps.core.logging import get_logger
+from apps.inventory.services import set_variant_stock
+from apps.users.models import User
 
 logger = get_logger(__name__)
 
@@ -92,20 +93,36 @@ def _ensure_compare_at_above_price(variant: ProductVariant) -> None:
 
 
 def create_variant(
-    *, product: Product, fields: Mapping[str, Any], stock_quantity: int = 0
+    *,
+    product: Product,
+    fields: Mapping[str, Any],
+    actor: User | None,
+    stock_quantity: int = 0,
 ) -> ProductVariant:
-    """Raises CompareAtNotAbovePrice for a compare-at at or below the resolved price."""
-    variant = ProductVariant(product=product, stock_quantity=stock_quantity)
+    """Raises CompareAtNotAbovePrice for a compare-at at or below the resolved price.
+
+    Opening stock is recorded as a stocktake, so the ledger accounts for every unit.
+    """
+    variant = ProductVariant(product=product)
     assign_fields(variant, fields, VARIANT_FIELDS)
     _ensure_compare_at_above_price(variant)
-    variant.save()
+    with transaction.atomic():
+        variant.save()
+        if stock_quantity:
+            variant = set_variant_stock(
+                variant=variant, quantity=stock_quantity, actor=actor, note="Opening stock"
+            )
 
     logger.info("catalog.variant_created", variant_id=str(variant.pk), sku=variant.sku)
     return variant
 
 
 def update_variant(
-    *, variant: ProductVariant, fields: Mapping[str, Any], stock_quantity: int | None = None
+    *,
+    variant: ProductVariant,
+    fields: Mapping[str, Any],
+    actor: User | None,
+    stock_quantity: int | None = None,
 ) -> ProductVariant:
     """Stock goes through set_variant_stock, so it takes the row lock.
 
@@ -118,7 +135,7 @@ def update_variant(
             _ensure_compare_at_above_price(variant)
         variant.save(update_fields=[*fields, "updated_at"])
     if stock_quantity is not None:
-        variant = set_variant_stock(variant=variant, quantity=stock_quantity)
+        variant = set_variant_stock(variant=variant, quantity=stock_quantity, actor=actor)
     return variant
 
 

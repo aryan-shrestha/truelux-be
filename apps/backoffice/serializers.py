@@ -16,6 +16,7 @@ from apps.catalog.models import (
     Size,
     SkinType,
 )
+from apps.inventory.models import MANUAL_REASONS, StockMovement
 from apps.orders.constants import ALLOWED_TRANSITIONS, OrderStatus
 from apps.orders.models import Order, OrderItem, ShippingSettings
 
@@ -195,6 +196,37 @@ class VariantWriteSerializer(serializers.Serializer[ProductVariant]):
         allow_null=True,
         required=False,
     )
+
+
+class StockAdjustmentSerializer(serializers.Serializer[StockMovement]):
+    quantity_change = serializers.IntegerField()
+    reason = serializers.ChoiceField(choices=MANUAL_REASONS)
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
+class StockMovementSerializer(serializers.ModelSerializer[StockMovement]):
+    order_number = serializers.CharField(
+        source="order.order_number", read_only=True, allow_null=True, default=None
+    )
+    actor_email = serializers.EmailField(
+        source="actor.email", read_only=True, allow_null=True, default=None
+    )
+
+    class Meta:
+        model = StockMovement
+        fields = (
+            "id",
+            "variant_id",
+            "sku",
+            "reason",
+            "quantity_change",
+            "balance_after",
+            "order_id",
+            "order_number",
+            "actor_email",
+            "note",
+            "created_at",
+        )
 
 
 class ImageCreateSerializer(serializers.Serializer[ProductImage]):

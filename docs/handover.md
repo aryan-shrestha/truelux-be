@@ -120,7 +120,13 @@ it does not change the order.
 3. Add photos and choose the main one.
 4. **Publish** the product. The shop refuses to publish a product with no variants.
 
-Stock is always the counted total on your shelf, not a change to the number.
+A new variant's stock is the opening count on your shelf. After that, change stock
+in the admin app with the box icon beside the figure: record what happened
+(received, returned, damaged, expired, used as a tester, or a correction) and how
+many, and the shop adds or removes it, so an order placed meanwhile is kept.
+**Counted the shelf** sets the total instead, and replaces any order placed since
+you counted. The clock icon shows every change to that variant's stock, with who
+made it.
 
 ### Product photos
 

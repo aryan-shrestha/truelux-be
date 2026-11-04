@@ -50,7 +50,7 @@ colour axis became an optional shade. `apps/orders` writes stock only through
   `ProductVariant.price` resolves `price_override` against `product.base_price`.
 - `apps/catalog/exceptions.py` — `VariantUnavailable`, `InsufficientStock`,
   `ProductHasNoVariants`.
-- `apps/catalog/services/stock.py` — `decrement_variant_stock`,
+- `apps/inventory/services.py` — `decrement_variant_stock`,
   `restore_variant_stock` (whole-cart, one ascending-`pk`
   `select_for_update(of=("self",))`) and `set_variant_stock` (absolute count, locked).
 - `apps/catalog/services/products.py` — create/update/delete for products, variants
@@ -126,7 +126,8 @@ An unknown id is a 400 naming the field rather than a database error.
   `product_published_crtd_idx`.
 - `product_variant`: `product` (`CASCADE`), `size` (`PROTECT`), `shade`
   (`PROTECT`, nullable), `sku` (unique), `stock_quantity`, `price_override`;
-  `product_variant_unique_product_size_shade` (`NULLS NOT DISTINCT`),
+  `product_variant_unique_product_size_shade` and
+  `product_variant_unique_product_size_shadeless` (partial; ADR 0021),
   `product_variant_stock_not_negative`, `product_variant_price_override_positive`.
 - `product_image`: `product` (`CASCADE`), `image`, `alt_text`, `sort_order`,
   `is_primary`; partial unique `product_image_one_primary_per_product`; index

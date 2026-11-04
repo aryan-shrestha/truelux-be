@@ -25,6 +25,14 @@ def test_two_shadeless_variants_of_one_size_violate_the_unique_constraint():
         ProductVariantFactory(product=variant.product, size=variant.size, shade=None)
 
 
+def test_a_shaded_and_a_shadeless_variant_of_one_size_may_coexist():
+    shadeless = ProductVariantFactory(shade=None)
+
+    ProductVariantFactory(product=shadeless.product, size=shadeless.size, shade=ShadeFactory())
+
+    assert shadeless.product.variants.count() == 2
+
+
 def test_shade_filter_matches_and_excludes_shadeless_products(api_client):
     warm_beige = ShadeFactory(slug="warm-beige")
     foundation = ProductFactory(slug="silk-foundation", is_published=True)

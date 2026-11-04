@@ -9,12 +9,6 @@ from apps.catalog.services.products import (
     update_product_image,
     update_variant,
 )
-from apps.catalog.services.stock import (
-    check_variant_availability,
-    decrement_variant_stock,
-    restore_variant_stock,
-    set_variant_stock,
-)
 from apps.catalog.services.taxonomy import (
     create_taxonomy_entry,
     delete_taxonomy_entry,
@@ -23,17 +17,13 @@ from apps.catalog.services.taxonomy import (
 
 __all__ = [
     "add_product_image",
-    "check_variant_availability",
     "create_product",
     "create_taxonomy_entry",
     "create_variant",
-    "decrement_variant_stock",
     "delete_product",
     "delete_product_image",
     "delete_taxonomy_entry",
     "delete_variant",
-    "restore_variant_stock",
-    "set_variant_stock",
     "update_product",
     "update_product_image",
     "update_taxonomy_entry",

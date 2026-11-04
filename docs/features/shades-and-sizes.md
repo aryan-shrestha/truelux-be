@@ -2,7 +2,7 @@
 
 Status: Implemented
 
-Last updated: 2026-09-26
+Last updated: 2026-11-02
 
 ---
 
@@ -49,7 +49,8 @@ variant is still the stock and SKU unit.
 - `ProductVariant.shade = ForeignKey(Shade, on_delete=PROTECT, null=True, blank=True)`.
 - The unique constraint `product_variant_unique_product_size_shade` on
   `(product, size, shade)` with `nulls_distinct=False`, so a product cannot have
-  two shadeless variants of the same size.
+  two shadeless variants of the same size. Replaced by two partial constraints
+  for PostgreSQL 13 (ADR 0021).
 - Variant serializer: `"shade": {"name", "slug", "hex_code"} | null`.
 - `OrderItem.variant_shade = CharField(max_length=50, blank=True)`, an empty string
   when the variant has no shade.
@@ -62,8 +63,12 @@ variant is still the stock and SKU unit.
 ## Implemented
 
 - `apps/catalog/models.py` — `Shade` with the `shade_hex_code_format` check;
-  `ProductVariant.shade` nullable `PROTECT`; `product_variant_unique_product_size_shade`
-  with `nulls_distinct=False`. `Color` no longer exists.
+  `ProductVariant.shade` nullable `PROTECT`; two partial unique constraints,
+  `product_variant_unique_product_size_shade` on `(product, size, shade)` where the
+  shade is set and `product_variant_unique_product_size_shadeless` on
+  `(product, size)` where it is null. `Color` no longer exists.
+- `apps/catalog/migrations/0004_variant_unique_without_nulls_not_distinct.py` — drops
+  the `NULLS NOT DISTINCT` constraint and adds the two partial ones (ADR 0021).
 - `apps/catalog/selectors.py` — `list_shades_in_use` / `list_sizes_in_use` keep a row
   only when an `Exists` subquery finds a variant of a published product of an active
   brand, so a value used twice is listed once.
@@ -90,26 +95,34 @@ None.
 
 ## Decisions
 
-### Decision: `NULLS NOT DISTINCT` on the variant uniqueness constraint
+### Decision: two partial unique constraints, not `NULLS NOT DISTINCT`
 
 **Decision**
 
-Declared with Django's `UniqueConstraint(nulls_distinct=False)`.
+`UniqueConstraint(fields=["product", "size", "shade"], condition=Q(shade__isnull=False))`
+and `UniqueConstraint(fields=["product", "size"], condition=Q(shade__isnull=True))`.
+Until migration `catalog/0004` this was one `UniqueConstraint(nulls_distinct=False)`.
 
 **Reason**
 
-ADR 0010. Without it PostgreSQL treats every `NULL` shade as distinct and a product
-could hold any number of shadeless variants of one size.
+ADR 0010 needs one shadeless variant per product and size; without a rule for it
+PostgreSQL treats every `NULL` shade as distinct. `NULLS NOT DISTINCT` needs
+PostgreSQL 15, and production runs 13 (ADR 0021).
 
 **Consequence**
 
-PostgreSQL 15+ is required. The local compose file runs 16; a Homebrew Postgres 14
-on port 5432 would fail the migration.
+Works on every PostgreSQL version. Both are unique indexes rather than table
+constraints, because a partial uniqueness rule can only be an index in PostgreSQL;
+a violation still raises `IntegrityError`, which the API answers with 409
+`conflict`.
 
 ---
 
 ## Gotchas
 
+- **On PostgreSQL 13 and 14, Django silently skips a `nulls_distinct` constraint**:
+  the migration succeeds and nothing is enforced, with only a system-check warning.
+  Never reintroduce one while production runs 13.
 - `grep -ri colou\?r apps/` still matches the CSS `color:` properties in the email
   templates. Nothing in the domain is called colour any more.
 - `/shades/` and `/sizes/` are facets, not the lookup tables: an unused shade, or one
@@ -166,7 +179,7 @@ Reads are public. Writes go through `admin-api`.
 
 - `apps/catalog/tests/test_shades_and_sizes.py` — the hex check rejects `"red"`,
   `"#FFF"` and `"#GGGGGG"`; two shadeless variants of one product and size violate
-  the constraint; `?shade=` excludes shadeless products; `shade` is an object or
+  the constraint, while a shaded and a shadeless one of the same size coexist; `?shade=` excludes shadeless products; `shade` is an object or
   `null`; `/shades/` and `/sizes/` exclude unused and hidden-only values, in
   `sort_order`.
 - `apps/orders/tests/test_checkout.py` — the snapshot stores the shade name, and

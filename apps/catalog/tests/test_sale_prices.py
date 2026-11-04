@@ -89,6 +89,7 @@ def test_create_variant_rejects_a_compare_at_not_above_the_price(compare_at):
                 "size": SizeFactory(),
                 "compare_at_price": Decimal(compare_at),
             },
+            actor=None,
         )
 
     assert not ProductVariant.objects.exists()
@@ -101,11 +102,13 @@ def test_update_variant_checks_the_compare_at_against_the_new_override():
         update_variant(
             variant=variant,
             fields={"price_override": Decimal("4000.00"), "compare_at_price": Decimal("3800.00")},
+            actor=None,
         )
 
     update_variant(
         variant=variant,
         fields={"price_override": Decimal("2720.00"), "compare_at_price": Decimal("3200.00")},
+        actor=None,
     )
     variant.refresh_from_db()
     assert variant.on_sale is True
@@ -124,7 +127,7 @@ def test_repricing_a_product_above_its_compare_at_is_allowed_and_ends_the_sale()
 def test_raising_an_override_above_the_compare_at_is_allowed_and_ends_the_sale():
     variant = _variant(price_override="2720.00", compare_at="3200.00")
 
-    update_variant(variant=variant, fields={"price_override": Decimal("3300.00")})
+    update_variant(variant=variant, fields={"price_override": Decimal("3300.00")}, actor=None)
 
     variant.refresh_from_db()
     assert variant.on_sale is False
@@ -133,7 +136,7 @@ def test_raising_an_override_above_the_compare_at_is_allowed_and_ends_the_sale()
 def test_clearing_the_compare_at_ends_the_sale():
     variant = _variant(base_price="2720.00", compare_at="3200.00")
 
-    update_variant(variant=variant, fields={"compare_at_price": None})
+    update_variant(variant=variant, fields={"compare_at_price": None}, actor=None)
 
     variant.refresh_from_db()
     assert variant.compare_at_price is None

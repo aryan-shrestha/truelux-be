@@ -87,9 +87,9 @@ What is explicitly outside the scope?
   result. Its behaviour is otherwise unchanged.
 - `quote_cart(*, items, district)` raises `EmptyCart` for no items, sums duplicate
   lines exactly as `place_order` does (`_summed_quantities`), resolves the variants
-  with `apps.catalog.services.check_variant_availability` (no lock, no write), and
+  with `apps.inventory.services.check_variant_availability` (no lock, no write), and
   returns `price_cart(...)`.
-- `apps/catalog/services/stock.py`: the availability rules (unknown, unpublished,
+- `apps/inventory/services.py`: the availability rules (unknown, unpublished,
   inactive brand, shortfall) moved into shared helpers, so
   `check_variant_availability` and `decrement_variant_stock` raise the same
   `VariantUnavailable` and `InsufficientStock` with the same details.
@@ -324,7 +324,7 @@ apps/orders/migrations/0003_default_shipping_settings.py
 apps/orders/selectors.py                               get_shipping_settings
 apps/orders/services.py                                price_cart, quote_cart, update_shipping_settings
 apps/orders/{serializers,views,urls}.py                quote and /shipping/
-apps/catalog/services/stock.py                         check_variant_availability
+apps/inventory/services.py                         check_variant_availability
 apps/backoffice/{serializers,views,urls}.py            admin settings route
 config/settings/{base,test,strict_env}.py, .env.example, render.yaml   quote rate, fees removed
 conftest.py                                            shipping_settings fixture

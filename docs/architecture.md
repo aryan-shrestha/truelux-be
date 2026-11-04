@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-09-26
+Last updated: 2026-11-04
 
 This document describes the current architecture of the system.
 
@@ -13,21 +13,21 @@ tutorial for the entire codebase.
 
 The TrueLux API: a Django REST Framework JSON API for a multi-brand cosmetics
 store. It serves two clients: the public Next.js storefront (anonymous, guest
-checkout, cash on delivery) and the Next.js admin app (staff, JWT held server-side,
-ADR 0012). It is stateless: every piece of durable state lives in a managed service
+checkout, cash on delivery) and the React admin app (staff, JWT in browser storage,
+ADR 0020). It is stateless: every piece of durable state lives in a managed service
 outside the running container.
 
 ```text
-Storefront (browser)      Admin app (Next.js server)
+Storefront (browser)      Admin app (browser)
           ↘                  ↙
 
-Render (TLS termination, HTTP proxy)
+cPanel host: web server (TLS) → Passenger      (Render → gunicorn, until cPanel is live)
   ↓
-Gunicorn / Django / DRF
+Django / DRF
   ↓
 Domain apps (views → services / selectors)
   ↓
-Supabase PostgreSQL          Cloudinary
+PostgreSQL 13 on the host    Cloudinary       (Supabase on Render)
  ├── domain tables             └── image assets
  └── django_cache (throttle counters, ADR 0014)
 ```
@@ -41,8 +41,10 @@ Three properties define this architecture:
   the Django admin. There is no customer-facing upload endpoint.
 - **There is no task queue.** Every unit of work completes inside the request that
   started it.
-- **The database is external and pooled.** Connections traverse Supabase's pooler,
-  which constrains how Django may use them (see External systems).
+- **The settings assume a pooled database.** On Render, connections traverse
+  Supabase's pooler, which constrains how Django may use them (see External
+  systems). The cPanel host's PostgreSQL is local and unpooled; the same settings
+  run against it unchanged.
 
 ---
 
@@ -59,6 +61,7 @@ apps/
     catalog/
     orders/
     payments/
+    inventory/
     backoffice/
 docs/
     architecture.md
@@ -93,11 +96,11 @@ Superusers also sign in to the Django admin at `/django-admin/` with a session.
 ### `backoffice`
 
 The staff admin API under `/api/v1/admin/` (ADR 0013). It owns no models: it reads
-through its own selectors and writes only through the services of `catalog` and
-`orders`. Every view inherits `StaffAPIView` (JWT only, `IsAdminUser`, `admin`
+through its own selectors and writes only through the services of `catalog`,
+`orders` and `inventory`. Every view inherits `StaffAPIView` (JWT only, `IsAdminUser`, `admin`
 throttle scope). See `docs/features/admin-api.md`.
 
-### `catalog`, `orders`, `payments`
+### `catalog`, `orders`, `payments`, `inventory`
 
 One app per bounded piece of the product, named for the thing it owns. A domain app
 owns its models, its endpoints, and the rules for changing its data. Cross-app
@@ -107,13 +110,15 @@ directly.
 `catalog` owns `brand`, `size`, `shade`, `category`, `product`, `product_variant`
 and `product_image`. `orders` owns `order`, `order_item` and the one-row
 `shipping_settings` (ADR 0017). `payments` owns the cash-on-delivery `payment`
-record; there is no gateway (ADR 0011).
+record; there is no gateway (ADR 0011). `inventory` owns the `stock_movement`
+ledger and every write to `product_variant.stock_quantity` (ADR 0019).
 
-One boundary is genuinely non-obvious. Placing an order decrements variant stock,
-and that row belongs to `catalog`. The decrement — including its
-`select_for_update()` — goes through `apps.catalog.services`, never through
-`ProductVariant.objects` from inside an orders service. The lock belongs on the
-side that owns the row.
+One boundary is genuinely non-obvious. The stock column sits on `catalog`'s
+`product_variant` row, but only `apps.inventory.services` writes it: the
+decrement, the restore, stocktakes and adjustments, each with its
+`select_for_update()` and a ledger row in the same transaction. `orders` and
+`catalog` call those services and never write `stock_quantity` through
+`ProductVariant.objects`.
 
 ---
 
@@ -212,8 +217,8 @@ visible where the data is defined, not only in a migration.
 **Authentication.** JWT via `djangorestframework-simplejwt` is the only DRF
 authentication class. `POST /api/v1/auth/token/` issues an access/refresh pair to
 active staff only (`USER_AUTHENTICATION_RULE = apps.users.authentication.is_active_staff`);
-the admin app's server keeps them and sends `Authorization: Bearer <access>`
-(ADR 0012). Refresh tokens rotate and the previous one is blacklisted, so logout is
+the admin app keeps them in browser storage and sends `Authorization: Bearer <access>`
+(ADR 0020). Refresh tokens rotate and the previous one is blacklisted, so logout is
 a real server-side revocation. The Django admin keeps its own session login. The
 user model uses email as `USERNAME_FIELD`; there is no username.
 
@@ -274,7 +279,7 @@ Product                   (apps/catalog)
  ├── skin_types (M2M, optional), skin_feel, key_ingredients
  ├── ProductVariant (CASCADE)      the sellable unit, see ADR 0001
  │    ├── size (PROTECT) / shade (PROTECT, nullable)
- │    ├── unique (product, size, shade) NULLS NOT DISTINCT
+ │    ├── unique (product, size, shade); unique (product, size) when shadeless
  │    ├── sku (unique), stock_quantity
  │    └── price_override (nullable)
  └── ProductImage (CASCADE)
@@ -286,10 +291,11 @@ A product is visible to the public API only when `is_published` and its brand
 `is_active` (`VISIBLE_PRODUCT` in `apps/catalog/selectors.py`); checkout refuses a
 hidden variant with `variant_unavailable`.
 
-`ProductVariant.stock_quantity` is the only column two apps write. `orders`
-reaches it exclusively through `apps.catalog.services.decrement_variant_stock`
-and `restore_variant_stock`, which take the whole cart and lock every row in one
-ascending-`pk` `select_for_update(of=("self",))`. See ADR 0004.
+`ProductVariant.stock_quantity` is written only by `apps.inventory.services`.
+`orders` reaches it through `decrement_variant_stock` and `restore_variant_stock`,
+which take the whole cart and lock every row in one ascending-`pk`
+`select_for_update(of=("self",))`. See ADR 0004. Every write also records a
+`StockMovement` (ADR 0019).
 
 Conventions that apply to every model:
 
@@ -325,6 +331,14 @@ Payment                   (apps/payments)
 Checkout records a pending COD payment; staff mark the cash collected. Order status
 is not tied to it (ADR 0011).
 
+StockMovement             (apps/inventory, ADR 0019)
+ ├── variant (SET_NULL) + sku snapshot
+ ├── reason, quantity_change, balance_after (>= 0)
+ │                                    direction checked against reason
+ ├── order (SET_NULL, nullable)       sales and cancellations
+ ├── actor → User (SET_NULL, nullable)
+ └── note                             immutable: no service updates a row
+
 ---
 
 ## External systems
@@ -333,13 +347,19 @@ is not tied to it (ADR 0011).
 | ------------------- | ------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Supabase PostgreSQL | Primary database, the only source of truth | Django ORM over `DATABASE_URL`; migrations over `DATABASE_DIRECT_URL`; both in the `DATABASE_SCHEMA` schema | Runtime uses the pooler; migrations need the direct connection. Pooled connections forbid server-side cursors and prepared statements, so both are disabled. TLS required. |
 | Cloudinary          | Storage and CDN delivery of user images    | Django `STORAGES["default"]` via `cloudinary-storage`; `ImageField` | Upload is synchronous and inside the request. Deleting a row does not delete the asset. Delivery URLs are public.                                                                          |
-| Render              | Hosting, TLS, deploys                      | Native Python service (`render.yaml`); gunicorn; uv from `uv.lock`  | Ephemeral filesystem. TLS terminates at the proxy, so Django must trust `X-Forwarded-Proto`. No scheduler, and the free instance sleeps when idle.                                         |
+| cPanel host         | Hosting, TLS, PostgreSQL 13, SMTP          | Passenger loads `passenger_wsgi.py`; `make deploy` over SSH syncs `uv.lock` into cPanel's virtualenv (ADR 0022) | Manual deploys. Passenger, not the repository, decides process count and request timeout. Local PostgreSQL, one database per environment, schema `public`. No platform health check. |
+| Render              | Hosting, TLS, deploys, until cPanel is live | Native Python service (`render.yaml`); gunicorn; uv from `uv.lock`  | Ephemeral filesystem. TLS terminates at the proxy, so Django must trust `X-Forwarded-Proto`. No scheduler, and the free instance sleeps when idle.                                         |
 
 **Supabase usage is limited to Postgres.** Storage, Realtime, Edge Functions, and
 the Supabase client libraries are not used. Images are Cloudinary's job; adding a
 second object store would split ownership of the same concern.
 
-**Deployment shape.** A native Python service, described by `render.yaml` rather
+**Deployment shape on cPanel** (ADR 0022). One Passenger app per environment, each
+with its own database and its own `.env` in the app root, which Passenger and the
+SSH commands both read. `make deploy` is the build: it runs the Render build's
+steps in the same order inside cPanel's virtualenv, then restarts Passenger.
+
+**Deployment shape on Render**, until cPanel is live. A native Python service, described by `render.yaml` rather
 than by a dashboard. The build installs from `uv.lock`, migrates, creates
 the cache table, and collects static files, which WhiteNoise then serves. All configuration arrives as
 environment variables, and the blueprint is the only place the production set is
@@ -348,8 +368,9 @@ written down — two tests in `tests/test_settings.py` keep it in step with
 builds and then fails at import. See
 [features/deployment.md](features/deployment.md).
 
-**Migrations run once per deploy, in the build command**, never at application
-boot, so two starting instances cannot race each other. Render's
+**Migrations run once per deploy, in the build command** (`make deploy` on
+cPanel), never at application boot, so two starting instances cannot race each
+other. Render's
 `preDeployCommand` is the better home and needs a paid instance type; the build
 command runs exactly once per deploy too, so the race is still excluded. What it
 does not give is ordering against a failed release: migrations apply before the

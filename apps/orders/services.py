@@ -3,19 +3,19 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from django.conf import settings
 from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.catalog.models import ProductVariant
-from apps.catalog.services import (
+from apps.core.logging import get_logger
+from apps.inventory.services import (
     check_variant_availability,
     decrement_variant_stock,
     restore_variant_stock,
 )
-from apps.core.logging import get_logger
 from apps.orders.constants import (
     ORDER_NUMBER_DIGITS,
     ORDER_NUMBER_PREFIX,
@@ -31,6 +31,7 @@ from apps.orders.exceptions import (
 )
 from apps.orders.models import Order, OrderItem, ShippingSettings
 from apps.orders.selectors import get_shipping_settings
+from apps.users.models import User
 
 logger = get_logger(__name__)
 
@@ -104,7 +105,7 @@ def mark_order_delivered(*, order: Order) -> Order:
     )
 
 
-def cancel_order(*, order: Order) -> Order:
+def cancel_order(*, order: Order, actor: User | None) -> Order:
     """Raises OrderAlreadyShipped once the parcel has left, and OrderNotCancellable
     for an order that is already cancelled.
 
@@ -133,7 +134,7 @@ def cancel_order(*, order: Order) -> Order:
             # overwrite the first and restore too little.
             quantities[item.variant_id] += item.quantity
 
-        restore_variant_stock(quantities=dict(quantities))
+        restore_variant_stock(quantities=dict(quantities), order_id=locked.pk, actor=actor)
 
         locked.status = OrderStatus.CANCELLED
         locked.save(update_fields=["status", "updated_at"])
@@ -151,17 +152,19 @@ _TRANSITION_SERVICES: dict[str, Callable[..., Order]] = {
     OrderStatus.CONFIRMED: confirm_order,
     OrderStatus.SHIPPED: mark_order_shipped,
     OrderStatus.DELIVERED: mark_order_delivered,
-    OrderStatus.CANCELLED: cancel_order,
 }
 
 
-def transition_order(*, order: Order, to: str) -> Order:
+def transition_order(*, order: Order, to: str, actor: User | None) -> Order:
     """Moves an order to `to` through the service that owns that step.
 
     Raises InvalidStatusTransition for a move ALLOWED_TRANSITIONS does not list,
     except that cancelling keeps cancel_order's own OrderAlreadyShipped and
-    OrderNotCancellable, which say more.
+    OrderNotCancellable, which say more. Only cancelling moves stock, so only it
+    records the actor.
     """
+    if to == OrderStatus.CANCELLED:
+        return cancel_order(order=order, actor=actor)
     return _TRANSITION_SERVICES[to](order=order)
 
 
@@ -292,12 +295,16 @@ def place_order(
         raise EmptyCart()
 
     quantities = _summed_quantities(items)
+    # Generated before insert so the stock movements can name the order the
+    # decrement is for. Django's Postgres foreign keys are DEFERRABLE INITIALLY
+    # DEFERRED, so the movements may reference it until the order row lands below.
+    order_id = uuid4()
 
     with transaction.atomic():
         # One call, whole cart. This is what owns the lock, the ascending-pk
         # ordering ADR 0004 requires, and the two availability errors. It returns
         # the locked rows, so nothing below refetches what it already holds.
-        variants = decrement_variant_stock(quantities=quantities)
+        variants = decrement_variant_stock(quantities=quantities, order_id=order_id)
         price = price_cart(variants_by_id=variants, quantities=quantities, district=district)
 
         order_items = []
@@ -316,6 +323,7 @@ def place_order(
             )
 
         order = Order.objects.create(
+            id=order_id,
             order_number=generate_order_number(),
             email=email,
             phone=phone,

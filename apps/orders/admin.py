@@ -1,4 +1,6 @@
 from collections.abc import Callable
+from functools import partial
+from typing import cast
 
 from django.contrib import admin, messages
 from django.db.models import QuerySet
@@ -13,6 +15,7 @@ from apps.orders.services import (
     mark_order_delivered,
     mark_order_shipped,
 )
+from apps.users.models import User
 
 
 class OrderItemInline(admin.TabularInline):  # type: ignore[type-arg]  # not subscriptable at runtime
@@ -122,7 +125,9 @@ class OrderAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not subscriptab
 
     @admin.action(description="Cancel selected orders and return their stock")
     def cancel(self, request: HttpRequest, queryset: QuerySet[Order]) -> None:
-        self._run(request, queryset, cancel_order, "Cancelled")
+        self._run(
+            request, queryset, partial(cancel_order, actor=cast(User, request.user)), "Cancelled"
+        )
 
     def _resend(
         self,

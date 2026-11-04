@@ -20,7 +20,6 @@ from apps.catalog.models import (
     Size,
     SkinType,
 )
-from apps.catalog.services import stock
 from apps.catalog.tests.factories import BrandFactory
 from apps.catalog.workbook import importer
 from apps.catalog.workbook.export import CHARCOAL, LIGHT_GREY, build_workbook
@@ -36,6 +35,7 @@ from apps.catalog.workbook.layout import (
     CellValue,
     Sheet,
 )
+from apps.inventory import services as stock
 
 type Rows = dict[Sheet, list[list[CellValue]]]
 
@@ -316,14 +316,11 @@ def test_stock_is_set_through_set_variant_stock(tmp_path, media):
     rows = catalogue()
     rows[VARIANTS][0][4] = 40
 
-    with (
-        mock.patch.object(stock, "set_variant_stock", wraps=stock.set_variant_stock) as spy,
-        mock.patch("apps.catalog.services.products.set_variant_stock", spy),
-    ):
+    with mock.patch.object(importer, "set_variant_stock", wraps=stock.set_variant_stock) as spy:
         run_import(write(tmp_path, rows, "restocked.xlsx"))
 
     variant = ProductVariant.objects.get(sku="GL-ROSE-30")
-    spy.assert_called_once_with(variant=variant, quantity=40)
+    spy.assert_called_once_with(variant=variant, quantity=40, actor=None, note=importer.IMPORT_NOTE)
     assert variant.stock_quantity == 40
 
 

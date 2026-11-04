@@ -1,4 +1,4 @@
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 from uuid import UUID
 
 from django.db.models import QuerySet
@@ -17,7 +17,11 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from apps.backoffice import selectors
-from apps.backoffice.filters import AdminOrderFilter, AdminProductFilter
+from apps.backoffice.filters import (
+    AdminOrderFilter,
+    AdminProductFilter,
+    AdminStockMovementFilter,
+)
 from apps.backoffice.serializers import (
     AdminBrandSerializer,
     AdminCategorySerializer,
@@ -41,6 +45,8 @@ from apps.backoffice.serializers import (
     ShippingSettingsWriteSerializer,
     SizeWriteSerializer,
     SkinTypeWriteSerializer,
+    StockAdjustmentSerializer,
+    StockMovementSerializer,
     TransitionSerializer,
     VariantWriteSerializer,
 )
@@ -60,9 +66,12 @@ from apps.catalog.services import (
     update_taxonomy_entry,
     update_variant,
 )
+from apps.inventory.models import StockMovement
+from apps.inventory.services import adjust_variant_stock
 from apps.orders.models import Order
 from apps.orders.selectors import get_shipping_settings
 from apps.orders.services import transition_order, update_shipping_settings
+from apps.users.models import User
 
 ADMIN_THROTTLE_SCOPE = "admin"
 JSON_AND_MULTIPART = (JSONParser, MultiPartParser, FormParser)
@@ -155,6 +164,7 @@ class ProductVariantCreateView(StaffAPIView):
         variant = create_variant(
             product=selectors.get_product_row(product_id=product_id),
             fields=fields,
+            actor=cast(User, request.user),
             stock_quantity=stock_quantity,
         )
 
@@ -173,6 +183,7 @@ class VariantDetailView(StaffAPIView):
         update_variant(
             variant=selectors.get_variant(variant_id=variant_id),
             fields=fields,
+            actor=cast(User, request.user),
             stock_quantity=stock_quantity,
         )
 
@@ -182,6 +193,29 @@ class VariantDetailView(StaffAPIView):
     def delete(self, request: Request, variant_id: UUID) -> Response:
         delete_variant(variant=selectors.get_variant(variant_id=variant_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class VariantStockAdjustmentView(StaffAPIView):
+    @extend_schema(request=StockAdjustmentSerializer, responses={201: StockMovementSerializer})
+    def post(self, request: Request, variant_id: UUID) -> Response:
+        fields = _validated(StockAdjustmentSerializer, request)
+
+        movement = adjust_variant_stock(
+            variant=selectors.get_variant(variant_id=variant_id),
+            actor=cast(User, request.user),
+            **fields,
+        )
+
+        return Response(StockMovementSerializer(movement).data, status=status.HTTP_201_CREATED)
+
+
+class StockMovementListView(StaffAPIView, ListAPIView[StockMovement]):
+    serializer_class = StockMovementSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = AdminStockMovementFilter
+
+    def get_queryset(self) -> QuerySet[StockMovement]:
+        return selectors.list_stock_movements()
 
 
 class ProductImageCreateView(StaffAPIView):
@@ -408,7 +442,9 @@ class OrderTransitionView(StaffAPIView):
     def post(self, request: Request, order_id: UUID) -> Response:
         target = _validated(TransitionSerializer, request)["to"]
 
-        transition_order(order=selectors.get_order(order_id=order_id), to=target)
+        transition_order(
+            order=selectors.get_order(order_id=order_id), to=target, actor=cast(User, request.user)
+        )
 
         return Response(AdminOrderDetailSerializer(selectors.get_order(order_id=order_id)).data)
 

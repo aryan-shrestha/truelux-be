@@ -14,9 +14,9 @@ serves the public storefront (guest checkout, cash on delivery only) and the sta
 admin app (`/api/v1/admin/`, JWT).
 
 - Python 3.12+
-- Django 5.x
+- Django 5.1, pinned: production's PostgreSQL 13 rules out 5.2 (ADR 0021)
 - Django REST Framework
-- PostgreSQL 15+ with psycopg 3 (`NULLS NOT DISTINCT` is used; Supabase in production)
+- PostgreSQL 13+ with psycopg 3; production runs 13, so nothing may rely on a 14+ feature
 - No Redis: the cache, and so the throttle counters, is Django's `DatabaseCache` (ADR 0014).
 - There is **no Celery or task queue**. Do not add, stub, or introduce one.
 - `uv` manages dependencies, the virtual environment, and command execution.
@@ -132,6 +132,7 @@ apps/
     catalog/
     orders/
     payments/
+    inventory/
     backoffice/
         models
         serializers
@@ -145,11 +146,12 @@ apps/
         tests
 ```
 
-These five apps plus `core` are the complete set. `users` owns staff accounts and
+These six apps plus `core` are the complete set. `users` owns staff accounts and
 the JWT endpoints; `catalog` owns brands, categories, sizes, shades, products,
 variants and images; `orders` owns orders and their items; `payments` owns the
-cash-on-delivery records; `backoffice` is the staff admin API and owns no models
-(ADR 0013). Do not add another app without an ADR.
+cash-on-delivery records; `inventory` owns every stock write and the
+stock-movement ledger (ADR 0019); `backoffice` is the staff admin API and owns no
+models (ADR 0013). Do not add another app without an ADR.
 
 The staff back-office is the TrueLux admin app over `/api/v1/admin/`; the Django
 admin at `/django-admin/` remains for superusers. Both write through the same

@@ -56,11 +56,11 @@ is no authenticated user; contact details come from the body.
   `CheckoutResponseSerializer` (`order_number`, `status`, `subtotal`,
   `shipping_fee`, `total`).
 - `apps/orders/services.py::place_order` — collapses duplicate lines, calls
-  `apps.catalog.services.decrement_variant_stock` once for the whole cart, prices
+  `apps.inventory.services.decrement_variant_stock` once for the whole cart, prices
   the returned locked rows with `price_cart` (the same function the quote uses, so
   a quote and the order it becomes agree), creates the order and its lines, and
   registers the confirmation email with `transaction.on_commit`.
-- `apps/catalog/services/stock.py::decrement_variant_stock` — locks with
+- `apps/inventory/services.py::decrement_variant_stock` — locks with
   `select_for_update(of=("self",))`, `select_related("product__brand", "size",
   "shade")`, ordered by `pk`; raises `VariantUnavailable` for unknown variants and
   for variants of an unpublished product or an inactive brand, and
@@ -194,7 +194,7 @@ per cart line; two concurrent buyers of the last unit place one order.
 
 ```text
 apps/orders/{serializers,services,views,urls}.py   place_order, price_cart
-apps/catalog/services/stock.py
+apps/inventory/services.py
 apps/payments/services.py
 apps/orders/tests/test_checkout.py
 ```

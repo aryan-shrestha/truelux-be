@@ -1,3 +1,5 @@
+from typing import cast
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
@@ -16,8 +18,10 @@ from apps.catalog.models import (
     Size,
     SkinType,
 )
-from apps.catalog.services import set_variant_stock, update_product, update_product_image
+from apps.catalog.services import update_product, update_product_image
 from apps.core.exceptions import DomainError
+from apps.inventory.services import set_variant_stock
+from apps.users.models import User
 
 # Generated from the product, size and shade slugs, so it is unique whenever the
 # product slug fits. A truncated slug can collide with another product's; the
@@ -248,7 +252,7 @@ class ProductVariantAdmin(admin.ModelAdmin):  # type: ignore[type-arg]  # not su
 
         quantity = form.cleaned_data["quantity"]
         for variant in queryset:
-            set_variant_stock(variant=variant, quantity=quantity)
+            set_variant_stock(variant=variant, quantity=quantity, actor=cast(User, request.user))
 
         self.message_user(
             request, f"Set stock to {quantity} on {queryset.count()} variants.", messages.SUCCESS

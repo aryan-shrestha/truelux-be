@@ -7,6 +7,7 @@ from apps.backoffice.constants import LOW_STOCK_THRESHOLD
 from apps.backoffice.selectors import start_of_shop_day
 from apps.catalog.filters import OnSaleFilter
 from apps.catalog.models import Product, ProductVariant
+from apps.inventory.models import MovementReason, StockMovement
 from apps.orders.constants import OrderStatus
 from apps.orders.models import Order
 
@@ -54,3 +55,13 @@ class AdminOrderFilter(django_filters.FilterSet):  # type: ignore[misc]  # djang
         if value == date.max:
             return queryset
         return queryset.filter(created_at__lt=start_of_shop_day(value + timedelta(days=1)))
+
+
+class AdminStockMovementFilter(django_filters.FilterSet):  # type: ignore[misc]  # django-filter ships no stubs
+    variant = django_filters.UUIDFilter(field_name="variant_id")
+    order = django_filters.UUIDFilter(field_name="order_id")
+    reason = django_filters.MultipleChoiceFilter(choices=MovementReason.choices)
+
+    class Meta:
+        model = StockMovement
+        fields = ("variant", "order", "reason")
