@@ -346,6 +346,7 @@ StockMovement             (apps/inventory, ADR 0019)
 | System              | Purpose                                    | Integration point                                                   | Important constraint                                                                                                                                                                       |
 | ------------------- | ------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Supabase PostgreSQL | Primary database, the only source of truth | Django ORM over `DATABASE_URL`; migrations over `DATABASE_DIRECT_URL`; both in the `DATABASE_SCHEMA` schema | Runtime uses the pooler; migrations need the direct connection. Pooled connections forbid server-side cursors and prepared statements, so both are disabled. TLS required. |
+| Sentry              | Error reports from both cPanel apps        | `sentry_sdk.init` in `production.py` when `SENTRY_DSN` is set; unhandled exceptions and `ERROR` log lines (ADR 0023) | No user identity, cookies, bodies, query parameters, SQL parameters, frame variables or client IPs; access tokens redacted from URL and headers. Errors only, no tracing. |
 | Cloudinary          | Storage and CDN delivery of user images    | Django `STORAGES["default"]` via `cloudinary-storage`; `ImageField` | Upload is synchronous and inside the request. Deleting a row does not delete the asset. Delivery URLs are public.                                                                          |
 | cPanel host         | Hosting, TLS, PostgreSQL 13, SMTP          | Passenger loads `passenger_wsgi.py`; `make deploy` over SSH syncs `uv.lock` into cPanel's virtualenv (ADR 0022) | Manual deploys. Passenger, not the repository, decides process count and request timeout. Local PostgreSQL, one database per environment, schema `public`. No platform health check. |
 | Render              | Hosting, TLS, deploys, until cPanel is live | Native Python service (`render.yaml`); gunicorn; uv from `uv.lock`  | Ephemeral filesystem. TLS terminates at the proxy, so Django must trust `X-Forwarded-Proto`. No scheduler, and the free instance sleeps when idle.                                         |
@@ -483,7 +484,7 @@ Rules:
 - 500 responses carry no exception text. The detail goes to the logs with the
   request id.
 - Every log line and every response carries a request id, so a client-reported
-  failure can be found in Render's logs. CORS exposes `X-Request-ID` so browser
+  failure can be found in the app's log on the host. CORS exposes `X-Request-ID` so browser
   clients can read it.
 
 ---

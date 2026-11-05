@@ -138,6 +138,8 @@ the example:
 | `DJANGO_DEFAULT_FROM_EMAIL` | The mailbox's address |
 | `SEED_DEMO_DATA` | `true` for the demo, `false` for production before its first deploy |
 | `DEMO_STAFF_EMAIL`, `DEMO_STAFF_PASSWORD` in production | Still required (ADR 0008), never used while `SEED_DEMO_DATA` is false |
+| `SENTRY_DSN` | The Sentry project's DSN, the same in both apps; empty turns reporting off (`error-tracking.md`) |
+| `SENTRY_ENVIRONMENT` | `dev` or `production` |
 | `DEMO_STAFF_EMAIL`, `DEMO_STAFF_PASSWORD` | The demo's admin login; the password at least 12 characters |
 
 The rest take the values `render.yaml` sets: `DJANGO_DEBUG=False`,

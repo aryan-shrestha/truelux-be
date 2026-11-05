@@ -48,14 +48,16 @@ NEVER_ECHOED = frozenset(
 )
 
 # Variables where an empty value is a real choice rather than an oversight: a
-# deployment may legitimately trust no extra origins, and an SMTP relay may accept
-# mail unauthenticated. Every other variable must carry a value.
+# deployment may legitimately trust no extra origins, an SMTP relay may accept mail
+# unauthenticated, and a machine with no Sentry DSN reports nowhere. Every other
+# variable must carry a value.
 MAY_BE_EMPTY = frozenset(
     {
         "DJANGO_CORS_ALLOWED_ORIGINS",
         "DJANGO_CSRF_TRUSTED_ORIGINS",
         "EMAIL_HOST_USER",
         "EMAIL_HOST_PASSWORD",
+        "SENTRY_DSN",
     }
 )
 

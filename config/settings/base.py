@@ -270,6 +270,11 @@ KATHMANDU_VALLEY_DISTRICTS = ("kathmandu", "lalitpur", "bhaktapur")
 
 LOG_LEVEL = read.text("DJANGO_LOG_LEVEL")
 
+# ADR 0023: production.py reports errors to Sentry when a DSN is set. Empty turns it
+# off, which is what every machine but the servers wants.
+SENTRY_DSN = read.text("SENTRY_DSN")
+SENTRY_ENVIRONMENT = read.text("SENTRY_ENVIRONMENT")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
