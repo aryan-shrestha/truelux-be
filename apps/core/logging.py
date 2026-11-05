@@ -3,6 +3,7 @@ import re
 from typing import Any
 
 import structlog
+from sentry_sdk.types import Event, Hint
 
 REQUEST_ID_KEY = "request_id"
 
@@ -36,6 +37,22 @@ class RedactUUIDs(logging.Filter):
         elif record.args:
             record.args = tuple(_redact(arg) for arg in record.args)
         return True
+
+
+def scrub_sentry_event(event: Event, hint: Hint) -> Event:
+    """Removes access tokens from an event's request before Sentry sends it.
+
+    Sentry records the request URL and headers itself, so `RedactUUIDs` never sees
+    them, and the order page's URL carries the access_token, which the storefront's
+    `Referer` can repeat.
+    """
+    request = event.get("request")
+    if request:
+        if "url" in request:
+            request["url"] = _redact(request["url"])
+        if isinstance(headers := request.get("headers"), dict):
+            request["headers"] = {name: _redact(value) for name, value in headers.items()}
+    return event
 
 
 def _ensure_request_id(logger: Any, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:

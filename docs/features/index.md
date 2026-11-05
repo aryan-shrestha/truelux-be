@@ -31,6 +31,7 @@ Redis were removed at the fork.
 | 19  | checkout-quote-and-shipping | Implemented | `features/checkout-quote-and-shipping.md` | 6, 7, 16 | 2026-09-27 |
 | 20  | sale-prices         | Implemented | `features/sale-prices.md`         | 4, 5, 11, 16, 18 | 2026-09-29 |
 | 21  | inventory           | Implemented | `features/inventory.md`           | 4, 6, 16, 18 | 2026-10-09 |
+| 22  | error-tracking      | Implemented | `features/error-tracking.md`      | 12         | 2026-11-05   |
 
 `Depends on` refers to the `#` column of this table.
 
@@ -118,6 +119,7 @@ Redis were removed at the fork.
 | 0020 | The admin app keeps JWT in browser storage      | staff-auth, admin-api, deployment     |
 | 0021 | Production runs PostgreSQL 13, so Django stays on 5.1 | shades-and-sizes, deployment, every dependency |
 | 0022 | The API runs under Passenger on the cPanel host | deployment                            |
+| 0023 | Errors are reported to Sentry, without customer data | error-tracking, deployment       |
 
 ## Deferred
 

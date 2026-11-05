@@ -43,6 +43,8 @@ _TEST_ENVIRONMENT = {
     "SEED_DEMO_DATA": "False",
     # The runner builds a fresh test database, which has only `public`.
     "DATABASE_SCHEMA": "public",
+    "SENTRY_DSN": "",
+    "SENTRY_ENVIRONMENT": "test",
 }
 
 os.environ.update(_TEST_ENVIRONMENT)

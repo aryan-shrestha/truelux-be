@@ -4,8 +4,10 @@ from pathlib import Path
 
 import environ
 import pytest
+import sentry_sdk
 from django.core.exceptions import ImproperlyConfigured
 
+from apps.core.logging import scrub_sentry_event
 from config.settings import strict_env
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -267,6 +269,58 @@ def test_production_trusts_the_proxy_forwarded_scheme(clean_env):
     settings = _reload("config.settings.production")
 
     assert settings.SECURE_PROXY_SSL_HEADER == ("HTTP_X_FORWARDED_PROTO", "https")
+
+
+@pytest.fixture
+def sentry_init_calls(clean_env):
+    calls: list[dict[str, object]] = []
+    clean_env.setattr(sentry_sdk, "init", lambda **options: calls.append(options))
+    yield calls
+    # base.py keeps the DSN a test reloaded it with, and the next test that reloads
+    # production would hand it to the real sentry_sdk.init.
+    clean_env.setenv("SENTRY_DSN", "")
+    _reload("config.settings.base")
+
+
+def test_production_reports_nothing_without_a_sentry_dsn(clean_env, sentry_init_calls):
+    clean_env.setenv("SENTRY_DSN", "")
+
+    _reload("config.settings.base")
+    _reload("config.settings.production")
+
+    assert sentry_init_calls == []
+
+
+def test_production_reports_to_sentry_without_customer_data(clean_env, sentry_init_calls):
+    # ADR 0023: bodies, query strings and frame variables hold customers' names,
+    # emails, phones and addresses, and the order URL holds the access_token.
+    clean_env.setenv("SENTRY_DSN", "https://public@o1.ingest.sentry.io/1")
+    clean_env.setenv("SENTRY_ENVIRONMENT", "production")
+
+    _reload("config.settings.base")
+    _reload("config.settings.production")
+
+    assert sentry_init_calls == [
+        {
+            "dsn": "https://public@o1.ingest.sentry.io/1",
+            "environment": "production",
+            "data_collection": {
+                "user_info": False,
+                "cookies": {"mode": "off"},
+                "http_bodies": [],
+                "url_query_params": {"mode": "off"},
+                "database_query_data": False,
+                "stack_frame_variables": False,
+                "http_headers": {
+                    "request": {
+                        "mode": "denylist",
+                        "terms": ["forwarded", "-ip", "remote-", "via", "-user"],
+                    }
+                },
+            },
+            "before_send": scrub_sentry_event,
+        }
+    ]
 
 
 def test_production_renders_json_only(clean_env):

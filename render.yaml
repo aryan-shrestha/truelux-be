@@ -79,6 +79,8 @@ services:
         sync: false
       - key: EMAIL_HOST_PASSWORD
         sync: false
+      - key: SENTRY_DSN
+        sync: false
       # The admin login `seed_staff --deploy` creates once while SEED_DEMO_DATA is
       # true. The password must be at least 12 characters.
       - key: DEMO_STAFF_EMAIL
@@ -113,6 +115,8 @@ services:
         value: "False"
       - key: DJANGO_LOG_LEVEL
         value: INFO
+      - key: SENTRY_ENVIRONMENT
+        value: production
       - key: DJANGO_SECURE_SSL_REDIRECT
         value: "True"
       - key: DJANGO_SECURE_HSTS_SECONDS

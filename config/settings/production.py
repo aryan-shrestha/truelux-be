@@ -1,5 +1,8 @@
 import os
 
+import sentry_sdk
+
+from apps.core.logging import scrub_sentry_event
 from config.settings.base import *
 
 DEBUG = False
@@ -34,3 +37,30 @@ if _render_hostname := os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
 # assert that a readiness failure leaks no connection string -- so exempting them
 # costs nothing and removes a way for a correct deployment to look dead.
 SECURE_REDIRECT_EXEMPT = [r"^health/"]
+
+# ADR 0023. Request bodies, query strings and stack-frame variables carry customers'
+# names, emails, phone numbers and addresses (checkout, the order lookup, the admin's
+# order search), and convention.md keeps them off every log, so Sentry collects none
+# of them. ERROR log lines, such as `email.send_failed`, become Sentry events too.
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=SENTRY_ENVIRONMENT,
+        data_collection={
+            "user_info": False,
+            "cookies": {"mode": "off"},
+            "http_bodies": [],
+            "url_query_params": {"mode": "off"},
+            "database_query_data": False,
+            "stack_frame_variables": False,
+            # The client-IP headers the SDK hides by default, which an explicit
+            # data_collection drops: behind LiteSpeed, X-Forwarded-For is the customer.
+            "http_headers": {
+                "request": {
+                    "mode": "denylist",
+                    "terms": ["forwarded", "-ip", "remote-", "via", "-user"],
+                }
+            },
+        },
+        before_send=scrub_sentry_event,
+    )

@@ -3,8 +3,15 @@ import logging
 
 import pytest
 import structlog
+from sentry_sdk.types import Event
 
-from apps.core.logging import JSONFormatter, RedactUUIDs, configure_structlog, get_logger
+from apps.core.logging import (
+    JSONFormatter,
+    RedactUUIDs,
+    configure_structlog,
+    get_logger,
+    scrub_sentry_event,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -116,3 +123,33 @@ def test_redaction_leaves_ordinary_paths_alone():
     RedactUUIDs().filter(record)
 
     assert record.getMessage() == "Internal Server Error: /api/v1/products/silk-foundation/"
+
+
+def test_sentry_events_lose_the_access_token():
+    # Sentry records the request URL and headers itself, so RedactUUIDs never sees
+    # them, and the storefront's Referer can repeat the order page's token.
+    token = "0f9c2a48-1d3e-4b7a-9c61-2f8e5d4a7b10"
+    event: Event = {
+        "request": {
+            "url": f"https://api.example.com/api/v1/orders/{token}/",
+            "headers": {"Referer": f"https://shop.example.com/orders/{token}", "Accept": "*/*"},
+            "method": "GET",
+        },
+        "level": "error",
+    }
+
+    scrubbed = scrub_sentry_event(event, {})
+
+    assert scrubbed["request"] == {
+        "url": "https://api.example.com/api/v1/orders/<redacted>/",
+        "headers": {"Referer": "https://shop.example.com/orders/<redacted>", "Accept": "*/*"},
+        "method": "GET",
+    }
+    assert scrubbed["level"] == "error"
+
+
+def test_a_sentry_event_without_a_request_is_sent_unchanged():
+    # A management command's error, or an ERROR log line outside a request.
+    event: Event = {"message": "email.send_failed", "level": "error"}
+
+    assert scrub_sentry_event(event.copy(), {}) == event

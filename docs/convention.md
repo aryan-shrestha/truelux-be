@@ -638,7 +638,8 @@ secrets and signatures, password-reset tokens, and full email addresses. Log
 produced them may not.
 
 Every log line carries the request id from the middleware, so a client-reported
-failure can be traced in Render's logs.
+failure can be traced in the app's log on the host. Every `ERROR` line also becomes a
+Sentry event in production (ADR 0023), which is one more reason the list above holds.
 
 ---
 
